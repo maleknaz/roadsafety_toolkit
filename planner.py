@@ -9,6 +9,7 @@ from __future__ import annotations
 import csv
 import io
 import json
+from html import escape
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -145,8 +146,107 @@ def excel_bytes(a, d):
     return out.getvalue()
 
 
+
+def light_notice(message, kind="info"):
+    """Render readable planner-local callouts without Streamlit theme inheritance."""
+    accent = {"info": "#16859a", "warning": "#ad751a", "error": "#ba4b43", "success": "#16836e"}.get(kind, "#16859a")
+    background = {"info": "#edf6fa", "warning": "#fff8eb", "error": "#fff1f0", "success": "#edf8f4"}.get(kind, "#edf6fa")
+    text_color = "#17324a"
+    st.markdown(
+        f'<div style="background:{background};border:1px solid #cbdfe8;'
+        f'border-left:4px solid {accent};border-radius:8px;'
+        f'padding:14px 18px;margin:10px 0 16px;color:{text_color};'
+        f'font-size:15px;line-height:1.6;">{escape(message)}</div>',
+        unsafe_allow_html=True,
+    )
+
+
 def render():
     with st.container(key="road_safety_planner"):
+
+        # Local refinements intentionally affect only this planner's Streamlit controls.
+        # They leave the outer navigation and all six HTML dashboards untouched.
+        st.markdown("""<style>
+        .st-key-road_safety_planner [data-testid="stDateInput"],
+        .st-key-road_safety_planner [data-testid="stDateInput"] > div,
+        .st-key-road_safety_planner [data-testid="stDateInput"] > div > div,
+        .st-key-road_safety_planner [data-testid="stDateInput"] [data-baseweb="input"],
+        .st-key-road_safety_planner [data-testid="stDateInput"] [data-baseweb="input"] > div,
+        .st-key-road_safety_planner [data-testid="stDateInput"] input,
+        .st-key-road_safety_planner [data-testid="stTextInput"] [data-baseweb="input"],
+        .st-key-road_safety_planner [data-testid="stTextInput"] [data-baseweb="input"] > div,
+        .st-key-road_safety_planner [data-testid="stTextArea"] [data-baseweb="textarea"],
+        .st-key-road_safety_planner [data-baseweb="select"] > div {
+            background-color:#ffffff!important;
+            color:#17324a!important;
+            -webkit-text-fill-color:#17324a!important;
+            border-color:#b5c8d3!important;
+            box-shadow:none!important;
+        }
+        /* BaseWeb creates a separate right-hand arrow region in select controls. */
+        .st-key-road_safety_planner [data-baseweb="select"] > div > div,
+        .st-key-road_safety_planner [data-baseweb="select"] [data-baseweb="select-arrow"],
+        .st-key-road_safety_planner [data-baseweb="select"] [aria-hidden="true"],
+        .st-key-road_safety_planner [data-testid="stDateInput"] [data-baseweb="input"] > div > div {
+            background-color:#ffffff!important;
+            color:#28536a!important;
+            -webkit-text-fill-color:#28536a!important;
+        }
+        .st-key-road_safety_planner [data-testid="stDateInput"] input,
+        .st-key-road_safety_planner [data-testid="stDateInput"] input::placeholder,
+        .st-key-road_safety_planner [data-testid="stDateInput"] input:placeholder-shown,
+        .st-key-road_safety_planner input::placeholder,
+        .st-key-road_safety_planner textarea::placeholder {
+            color:#566e7f!important;
+            -webkit-text-fill-color:#566e7f!important;
+            opacity:1!important;
+        }
+        /* Calendar glyph and dropdown arrows are icons, not editable text. */
+        .st-key-road_safety_planner [data-testid="stDateInput"] svg,
+        .st-key-road_safety_planner [data-baseweb="select"] svg,
+        .st-key-road_safety_planner [data-testid="stDateInput"] button,
+        .st-key-road_safety_planner [data-testid="stDateInput"] button * {
+            color:#28536a!important;
+            fill:#28536a!important;
+            -webkit-text-fill-color:#28536a!important;
+            background:#fff!important;
+        }
+        .st-key-road_safety_planner [data-testid="stProgress"] > div,
+        .st-key-road_safety_planner [data-testid="stProgress"] [role="progressbar"] {
+            background:#e5edf2!important;
+            border-radius:999px!important;
+        }
+        .st-key-road_safety_planner [data-testid="stProgress"] [role="progressbar"] > div,
+        .st-key-road_safety_planner [data-testid="stProgress"] > div > div {
+            background:#0f8494!important;
+        }
+        .st-key-road_safety_planner [data-testid="stFileUploaderDropzone"],
+        .st-key-road_safety_planner [data-testid="stFileUploaderDropzone"] > div,
+        .st-key-road_safety_planner [data-testid="stFileUploaderDropzone"] button {
+            background:#f7fafc!important;
+            color:#17324a!important;
+            -webkit-text-fill-color:#17324a!important;
+        }
+        .st-key-road_safety_planner [data-testid="stButton"] button,
+        .st-key-road_safety_planner [data-testid="stFormSubmitButton"] button,
+        .st-key-road_safety_planner [data-testid="stDownloadButton"] button {
+            background:#ffffff!important;
+            color:#17324a!important;
+            -webkit-text-fill-color:#17324a!important;
+            border:1px solid #9bb7c5!important;
+        }
+        .st-key-road_safety_planner [data-testid="stButton"] button *,
+        .st-key-road_safety_planner [data-testid="stFormSubmitButton"] button *,
+        .st-key-road_safety_planner [data-testid="stDownloadButton"] button * {
+            color:#17324a!important;
+            -webkit-text-fill-color:#17324a!important;
+        }
+        .st-key-road_safety_planner [data-testid="stButton"] button:hover,
+        .st-key-road_safety_planner [data-testid="stFormSubmitButton"] button:hover,
+        .st-key-road_safety_planner [data-testid="stDownloadButton"] button:hover {
+            background:#eaf5f8!important;
+        }
+        </style>""", unsafe_allow_html=True)
         d=load()
         st.markdown('''<div class="rs-planner-band"><div class="rs-planner-kicker">GLOBAL ROAD SAFETY · GOVERNANCE TOOLS</div><h1>Road Safety Governance Action Planner</h1><p>195 countries · 17 institutional domains · 72 defined interventions · Private self-assessments</p></div>''', unsafe_allow_html=True)
         # A native st.info() inherits an opaque dark background in certain hosted themes.
@@ -166,7 +266,7 @@ def render():
         if 'planner_drafts' not in st.session_state:st.session_state.planner_drafts={}
         if 'planner_active' not in st.session_state:st.session_state.planner_active=None
         if 'planner_flash' in st.session_state:
-            st.success(st.session_state.pop('planner_flash'))
+            light_notice(st.session_state.pop('planner_flash'), kind='success')
         with st.expander('Create or import a country assessment',expanded=not bool(st.session_state.planner_active)):
             c1,c2=st.columns([2,1])
             country=c1.selectbox('Country',d['countries'],index=d['countries'].index('Canada'))
@@ -180,7 +280,7 @@ def render():
             mechanism=st.selectbox('Optional research mechanism to consult',list(labels),format_func=lambda x:labels[x])
             if st.button('Create or open private draft',type='primary'):
                 if scope in ['Province / state / territory','City / municipality'] and not jurisdiction.strip():
-                    st.error('Please enter the province, state, territory or municipality.')
+                    light_notice('Please enter the province, state, territory or municipality.', kind='error')
                 else:
                     t=fresh(country,scope,jurisdiction.strip(),mechanism)
                     k=key_for(t)
@@ -195,7 +295,7 @@ def render():
                         raise ValueError('Unsupported or invalid draft')
                     k=key_for(incoming);st.session_state.planner_drafts[k]=incoming;st.session_state.planner_active=k
                     st.session_state.planner_flash='Draft imported successfully.';st.rerun()
-                except Exception as e:st.error(str(e))
+                except Exception as e:light_notice(str(e), kind='error')
         if not st.session_state.planner_active:return
         a=st.session_state.planner_drafts[st.session_state.planner_active]
         st.markdown(f"### {a['country']} · {a['scope']}" + (f" · {a['jurisdiction']}" if a['jurisdiction'] else ''))
@@ -213,7 +313,7 @@ def render():
         with sections[0]:
             st.markdown('#### Available source-linked research')
             if not a['mechanism']:
-                st.info('No specific coordinating mechanism selected. You can still assess the full framework. To see published source findings, start another draft linked to a researched mechanism.')
+                light_notice('No specific coordinating mechanism selected. You can still assess the full framework. To see published source findings, start another draft linked to a researched mechanism.')
             else:
                 institutional=[r for r in d['institutional'] if r['profile_id']==a['mechanism'] and r.get('source_url')]
                 findings=[r for r in d['findings'] if r['profile_id']==a['mechanism']]
@@ -251,7 +351,7 @@ def render():
             if submitted:
                 a['domains'][domain]={'membership':membership,'functional':functional,'institution':institution,'source':source,'notes':notes}
                 a['updated']=datetime.now(timezone.utc).isoformat(timespec='seconds')
-                st.success('Saved in current session.')
+                light_notice('Saved in current session.', kind='success')
         with sections[2]:
             pillar=st.selectbox('Filter by Safe System pillar', ['All pillars']+PILLARS)
             domain_filter=st.selectbox('Filter by institution', ['All domains']+d['domains'])
@@ -263,7 +363,7 @@ def render():
             research=[r for r in d['findings'] if r['profile_id']==a['mechanism'] and r['matrix_id']==code] if a['mechanism'] else []
             if research:
                 e=research[0]
-                st.info('**Published research lead, not verified self-assessment:** '+e['assessment']+' | '+e['documented_action'])
+                light_notice('Published research lead, not verified self-assessment: '+e['assessment']+' | '+e['documented_action'])
                 if e['source_url']:st.markdown('[Evidence link]('+e['source_url']+')')
             with st.form('intervention_form'):
                 assessment=st.selectbox('Assessment finding',ASSESSMENTS,index=ASSESSMENTS.index(rec.get('assessment','Not assessed')))
@@ -274,13 +374,13 @@ def render():
                 submitted=st.form_submit_button('Save checklist entry')
             if submitted:
                 if assessment in ['Fully aligned','Confirmed gap'] and not (source.strip() and notes.strip()):
-                    st.error('A fully aligned or confirmed-gap conclusion requires a source and rationale.')
+                    light_notice('A fully aligned or confirmed-gap conclusion requires a source and rationale.', kind='error')
                 elif assessment.startswith('Not applicable') and not notes.strip():
-                    st.error('Please explain why the requirement is not applicable.')
+                    light_notice('Please explain why the requirement is not applicable.', kind='error')
                 else:
                     set_cell(a,'interventions',code,'assessment',assessment)
                     a['interventions'][code].update({'stage':stage,'institution':institution,'source':source,'notes':notes})
-                    st.success('Saved in current session. Assessment progress does not imply intervention completion.')
+                    light_notice('Saved in current session. Assessment progress does not imply intervention completion.', kind='success')
         with sections[3]:
             st.markdown('#### Action tracking')
             with st.form('new_action',clear_on_submit=True):
@@ -291,20 +391,20 @@ def render():
                 priority=st.selectbox('Priority',['To be determined','High','Medium','Low'])
                 new=st.form_submit_button('Add action')
             if new:
-                if not title.strip():st.error('Enter an action description.')
+                if not title.strip():light_notice('Enter an action description.', kind='error')
                 else:
                     a['actions'].append({'requirement':req['matrix_id'],'title':title,'owner':owner,'due':str(due or ''),'priority':priority,'status':'Not started','evidence':''})
-                    st.success('Action added.')
+                    light_notice('Action added.', kind='success')
             for i,x in enumerate(a['actions']):
                 with st.expander(f"{i+1}. {x['title']} ({x['status']})"):
                     st.caption(f"Requirement {x['requirement']} | {x['priority']} | Due {x['due'] or 'unscheduled'}")
                     new_status=st.selectbox('Progress',TASK_STATUSES,index=TASK_STATUSES.index(x['status']),key=f'action_status_{i}')
                     ev=st.text_input('Completion evidence or source',value=x.get('evidence',''),key=f'action_evidence_{i}')
                     if st.button('Save task',key=f'action_save_{i}'):
-                        if new_status=='Completed and verified' and not ev.strip():st.error('Add evidence before marking a task verified complete.')
-                        else:x.update({'status':new_status,'evidence':ev});st.success('Task saved.')
+                        if new_status=='Completed and verified' and not ev.strip():light_notice('Add evidence before marking a task verified complete.', kind='error')
+                        else:x.update({'status':new_status,'evidence':ev});light_notice('Task saved.', kind='success')
         with sections[4]:
-            st.warning('This is an **unapproved draft**. Word/Excel files are internal working reports, not validated government findings. Shared publishing is intentionally disabled until authentication, independent review and country-approver permissions exist.')
+            light_notice('This is an unapproved draft. Word/Excel files are internal working reports, not validated government findings. Shared publishing is intentionally disabled until authentication, independent review and country-approver permissions exist.', kind='warning')
             name=''.join(ch if ch.isalnum() or ch in '-_' else '_' for ch in a['country'])
             st.download_button('Download draft backup (.json)',json.dumps(a,indent=2,ensure_ascii=False),file_name=name+'_draft.json',mime='application/json')
             st.download_button('Download Word executive report (.docx)',word_bytes(a,d),file_name=name+'_Gap_Analysis_DRAFT.docx',mime='application/vnd.openxmlformats-officedocument.wordprocessingml.document')
@@ -312,5 +412,5 @@ def render():
                 content=excel_bytes(a,d)
                 st.download_button('Download Excel action tracker (.xlsx)',content,file_name=name+'_Action_Tracker_DRAFT.xlsx',mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
             except Exception as e:
-                st.error('Excel export unavailable: '+str(e))
+                light_notice('Excel export unavailable: '+str(e), kind='error')
             st.button('Submit for shared publication (requires secure backend)',disabled=True)
