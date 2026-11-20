@@ -89,37 +89,60 @@ def word_bytes(a, d):
     b=io.BytesIO();doc.save(b);return b.getvalue()
 
 
-def excel_bytes(a,d):
-    # artifact_tool generates a native XLSX workbook from the same draft state as Word.
-    from artifact_tool import Workbook, SpreadsheetFile
-    import tempfile
-    wb=Workbook.create()
-    sheets=[
-        ('Summary', [['Field','Value'],['Country',a['country']],['Scope',a['scope']],['Jurisdiction',a['jurisdiction']],['Research mechanism',a['mechanism']],['Review status',a['review_state']],['Updated',a['updated']], ['Interventions assessed',sum(v.get('assessment','Not assessed')!='Not assessed' for v in a['interventions'].values())],['Total defined requirements',72]]),
-        ('Institutions', [['Domain','Membership','Functional role','Responsible institution','Evidence URL','Notes']]+[
-            [name,rec.get('membership','Not assessed'),rec.get('functional','Not assessed'),rec.get('institution',''),rec.get('source',''),rec.get('notes','')]
-            for name in d['domains'] for rec in [a['domains'].get(name,{})]]),
-        ('Checklist', [['ID','Pillar','Domain','Ideal intervention','Assessment','Implementation stage','Responsible institution','Evidence URL','Notes']]+[
-            [r['matrix_id'],r['pillar'],r['domain'],r['ideal_intervention'],rec.get('assessment','Not assessed'),rec.get('stage','Not verified'),rec.get('institution',''),rec.get('source',''),rec.get('notes','')]
-            for r in d['checklist'] for rec in [a['interventions'].get(r['matrix_id'],{})]]),
-        ('Action Tracker', [['Requirement','Action','Owner','Due date','Priority','Status','Evidence']]+[
-            [x.get(k,'') for k in ['requirement','title','owner','due','priority','status','evidence']] for x in a['actions']])
+def excel_bytes(a, d):
+    """Create an Excel workbook using openpyxl (Streamlit Cloud friendly)."""
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Font, PatternFill
+    from openpyxl.utils import get_column_letter
+
+    wb = Workbook()
+    wb.remove(wb.active)
+    sheets = [
+        ('Summary', [
+            ['Field', 'Value'], ['Country', a['country']], ['Scope', a['scope']],
+            ['Jurisdiction', a['jurisdiction']], ['Research mechanism', a['mechanism']],
+            ['Review status', a['review_state']], ['Updated', a['updated']],
+            ['Interventions assessed', sum(v.get('assessment', 'Not assessed') != 'Not assessed'
+                                           for v in a['interventions'].values())],
+            ['Total defined requirements', 72],
+        ]),
+        ('Institutions', [['Domain', 'Membership', 'Functional role', 'Responsible institution', 'Evidence URL', 'Notes']] + [
+            [name, rec.get('membership', 'Not assessed'), rec.get('functional', 'Not assessed'),
+             rec.get('institution', ''), rec.get('source', ''), rec.get('notes', '')]
+            for name in d['domains'] for rec in [a['domains'].get(name, {})]
+        ]),
+        ('Checklist', [['ID', 'Pillar', 'Domain', 'Ideal intervention', 'Assessment',
+                        'Implementation stage', 'Responsible institution', 'Evidence URL', 'Notes']] + [
+            [r['matrix_id'], r['pillar'], r['domain'], r['ideal_intervention'],
+             rec.get('assessment', 'Not assessed'), rec.get('stage', 'Not verified'),
+             rec.get('institution', ''), rec.get('source', ''), rec.get('notes', '')]
+            for r in d['checklist'] for rec in [a['interventions'].get(r['matrix_id'], {})]
+        ]),
+        ('Action Tracker', [['Requirement', 'Action', 'Owner', 'Due date', 'Priority', 'Status', 'Evidence']] + [
+            [x.get(k, '') for k in ['requirement', 'title', 'owner', 'due', 'priority', 'status', 'evidence']]
+            for x in a['actions']
+        ]),
     ]
-    for name,values in sheets:
-        sh=wb.worksheets.add(name)
-        width=len(values[0]);height=len(values)
-        sh.get_range_by_indexes(0,0,height,width).values=values
-        sh.get_range_by_indexes(0,0,1,width).format={
-            'fill':'#123B57','font':{'color':'#FFFFFF','bold':True},'row_height':25
-        }
-        sh.freeze_panes.freeze_rows(1)
-        sh.get_range_by_indexes(0,0,height,width).format.wrap_text=True
-        sh.get_range_by_indexes(0,0,height,width).format.column_width=24
-        if name=='Checklist':sh.get_range('D:D').format.column_width=42
-        if name=='Institutions':sh.get_range('A:A').format.column_width=38
-    with tempfile.NamedTemporaryFile(suffix='.xlsx') as f:
-        SpreadsheetFile.export_xlsx(wb).save(f.name)
-        return Path(f.name).read_bytes()
+    for sheet_name, values in sheets:
+        ws = wb.create_sheet(sheet_name)
+        for row in values:
+            ws.append([str(v) if v is not None and not isinstance(v, (int, float)) else v for v in row])
+        ws.freeze_panes = 'A2'
+        ws.auto_filter.ref = ws.dimensions
+        for cell in ws[1]:
+            cell.fill = PatternFill('solid', fgColor='123B57')
+            cell.font = Font(color='FFFFFF', bold=True)
+            cell.alignment = Alignment(wrap_text=True, vertical='center')
+        ws.row_dimensions[1].height = 28
+        for i, heading in enumerate(values[0], start=1):
+            width = 42 if heading in ('Ideal intervention', 'Domain') else 25
+            ws.column_dimensions[get_column_letter(i)].width = width
+        for row in ws.iter_rows(min_row=2):
+            for cell in row:
+                cell.alignment = Alignment(wrap_text=True, vertical='top')
+    out = io.BytesIO()
+    wb.save(out)
+    return out.getvalue()
 
 
 def render():
