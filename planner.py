@@ -149,7 +149,20 @@ def render():
     with st.container(key="road_safety_planner"):
         d=load()
         st.markdown('''<div class="rs-planner-band"><div class="rs-planner-kicker">GLOBAL ROAD SAFETY · GOVERNANCE TOOLS</div><h1>Road Safety Governance Action Planner</h1><p>195 countries · 17 institutional domains · 72 defined interventions · Private self-assessments</p></div>''', unsafe_allow_html=True)
-        st.info('**Connected evidence, private draft mode.** The source registers below are loaded from your Atlas research. This pilot saves entries in the current Streamlit session. Export a JSON backup before leaving. It does not yet provide user accounts, secure cloud drafts or publication approvals.')
+        # A native st.info() inherits an opaque dark background in certain hosted themes.
+        # Render this scoped, light callout instead; no global app styling is changed.
+        st.markdown("""
+        <div style="background-color:#edf6fa; border:1px solid #cbdfe8;
+                    border-left:4px solid #188aa1; border-radius:8px;
+                    padding:14px 18px; margin:10px 0 22px; color:#17324a;">
+          <p style="margin:0; font-size:14px; line-height:1.6; color:#17324a;">
+            <strong style="color:#12334a;">Connected research evidence · Private assessment draft.</strong>
+            The planner uses the Atlas research as reference material. Your entries are saved only
+            in this browser session; please export a JSON backup before leaving.
+            Secure user accounts, cloud storage and publication approvals are not yet enabled.
+          </p>
+        </div>
+        """, unsafe_allow_html=True)
         if 'planner_drafts' not in st.session_state:st.session_state.planner_drafts={}
         if 'planner_active' not in st.session_state:st.session_state.planner_active=None
         if 'planner_flash' in st.session_state:
