@@ -11,10 +11,10 @@ st.markdown("""<style>
 header[data-testid="stHeader"]{height:0!important;visibility:hidden!important}
 #MainMenu,footer[data-testid="stFooter"],[data-testid="stDecoration"]{display:none!important}
 [data-testid="stMainBlockContainer"],section.main>div.block-container{max-width:none!important;padding:0!important}
-[data-testid="stTabs"] [role="tablist"]{background:#0e2b48!important;padding:12px!important;gap:6px!important;flex-wrap:wrap!important;border-bottom:3px solid #09a7d5!important}
-[data-testid="stTabs"] [role="tab"]{background:#21516f!important;color:#fff!important;-webkit-text-fill-color:#fff!important;border:1px solid #85aec3!important;border-radius:6px!important;padding:10px 14px!important;min-height:42px!important;font-size:13px!important;font-weight:700!important;opacity:1!important}
+[data-testid="stTabs"] [role="tablist"]{background:#eef5f8!important;padding:12px!important;gap:6px!important;flex-wrap:wrap!important;border-bottom:3px solid #1593a9!important}
+[data-testid="stTabs"] [role="tab"]{background:#ffffff!important;color:#17324a!important;-webkit-text-fill-color:#17324a!important;border:1px solid #c6d8e2!important;border-radius:6px!important;padding:10px 14px!important;min-height:42px!important;font-size:13px!important;font-weight:700!important;opacity:1!important}
 [data-testid="stTabs"] [role="tab"] *{color:inherit!important;-webkit-text-fill-color:inherit!important}
-[data-testid="stTabs"] [role="tab"][aria-selected="true"]{background:#fff!important;color:#0e2b48!important;-webkit-text-fill-color:#0e2b48!important;border:2px solid #09a7d5!important}
+[data-testid="stTabs"] [role="tab"][aria-selected="true"]{background:#e1f1f5!important;color:#103b54!important;-webkit-text-fill-color:#103b54!important;border:2px solid #1593a9!important}
 [data-testid="stTabs"] [role="tabpanel"]{padding:0!important}
 iframe{border:0!important}
 
@@ -76,6 +76,65 @@ iframe{border:0!important}
 :is(.st-key-road_safety_planner,.st-key-road_safety_toolkit) [data-testid="stTabs"] [role="tab"]{background:#fff!important;color:#284a60!important;-webkit-text-fill-color:#284a60!important;border:1px solid #cbdde6!important;border-radius:6px!important;padding:9px 13px!important;min-height:38px!important;font-size:13px!important}
 :is(.st-key-road_safety_planner,.st-key-road_safety_toolkit) [data-testid="stTabs"] [role="tab"][aria-selected="true"]{background:#e1f1f5!important;color:#103b54!important;-webkit-text-fill-color:#103b54!important;border:1px solid #81b6c5!important;border-bottom:3px solid #0796ad!important}
 :is(.st-key-road_safety_planner,.st-key-road_safety_toolkit) [data-testid="stTabs"] [role="tabpanel"]{background:#fff!important;padding:16px 18px!important;border:1px solid #d8e4eb!important;border-top:0!important;border-radius:0 0 9px 9px!important}
+/* HIGH-CONTRAST LIGHT THEME: Toolkit and nested original planner only.
+   Streamlit's stAlert background is NOT sufficient. Some Streamlit versions
+   render a second dark [data-baseweb=notification] inside its frame. Keep both
+   the outer notification and every inner layer light, and force readable ink. */
+:is(.st-key-road_safety_planner,.st-key-road_safety_toolkit){
+  background-color:#f8fbfd!important;
+  color:#17324a!important;
+  color-scheme:light!important;
+}
+:is(.st-key-road_safety_planner,.st-key-road_safety_toolkit) :is([data-testid="stAlert"],[data-baseweb="notification"],[data-testid="stNotification"],[role="alert"]),
+:is(.st-key-road_safety_planner,.st-key-road_safety_toolkit) :is([data-testid="stAlert"],[data-baseweb="notification"],[data-testid="stNotification"],[role="alert"]) > div,
+:is(.st-key-road_safety_planner,.st-key-road_safety_toolkit) :is([data-testid="stAlert"],[data-baseweb="notification"],[data-testid="stNotification"],[role="alert"]) [data-testid="stMarkdownContainer"]{
+  background-color:#eef6fa!important;
+  color:#17324a!important;
+  -webkit-text-fill-color:#17324a!important;
+  border-color:#bdd4df!important;
+  opacity:1!important;
+}
+:is(.st-key-road_safety_planner,.st-key-road_safety_toolkit) :is([data-testid="stAlert"],[data-baseweb="notification"],[data-testid="stNotification"],[role="alert"]) :is(div,span,p,li,strong,em,svg){
+  color:#17324a!important;
+  -webkit-text-fill-color:#17324a!important;
+  opacity:1!important;
+}
+:is(.st-key-road_safety_planner,.st-key-road_safety_toolkit) .rs-light-notice{
+  color:#17324a!important;
+  background-color:#edf7fb!important;
+  -webkit-text-fill-color:#17324a!important;
+  opacity:1!important;
+}
+:is(.st-key-road_safety_planner,.st-key-road_safety_toolkit) :is([data-testid="stExpanderDetails"],[data-testid="stExpander"],details,details > div,[data-testid="stForm"],[data-testid="stMetric"],[data-testid="stDataFrame"],[data-testid="stDataEditor"]){
+  background-color:#fff!important;
+  color:#17324a!important;
+  color-scheme:light!important;
+}
+:is(.st-key-road_safety_planner,.st-key-road_safety_toolkit) [data-testid="stExpander"] :is(summary,summary > div,summary > div > div){
+  background-color:#fff!important;
+  color:#17324a!important;
+  -webkit-text-fill-color:#17324a!important;
+}
+:is(.st-key-road_safety_planner,.st-key-road_safety_toolkit) [data-testid="stCaptionContainer"],
+:is(.st-key-road_safety_planner,.st-key-road_safety_toolkit) [data-testid="stCaptionContainer"] *{
+  color:#4d6478!important;
+  -webkit-text-fill-color:#4d6478!important;
+  opacity:1!important;
+}
+:is(.st-key-road_safety_planner,.st-key-road_safety_toolkit) :is([data-testid="stRadio"],[data-testid="stCheckbox"],[data-testid="stSelectbox"],[data-testid="stTextInput"],[data-testid="stTextArea"]){
+  color:#17324a!important;
+  color-scheme:light!important;
+}
+:is(.st-key-road_safety_planner,.st-key-road_safety_toolkit) :is([data-testid="stRadio"],[data-testid="stCheckbox"]) label *{
+  color:#17324a!important;
+  -webkit-text-fill-color:#17324a!important;
+}
+:is(.st-key-road_safety_planner,.st-key-road_safety_toolkit) :is([data-testid="stButton"],[data-testid="stDownloadButton"],[data-testid="stFormSubmitButton"]) button *{
+  color:#13506c!important;
+  -webkit-text-fill-color:#13506c!important;
+  opacity:1!important;
+}
+
 /* Compact, editorial heading akin to the other UN-style Atlas pages. */
 :is(.st-key-road_safety_planner,.st-key-road_safety_toolkit) .rs-planner-band{margin:0 -24px 22px!important;padding:17px 28px!important;background:#fff!important;border-top:5px solid #078da0!important;border-bottom:1px solid #d8e4eb!important;color:#10334b!important}
 :is(.st-key-road_safety_planner,.st-key-road_safety_toolkit) .rs-planner-kicker{font-size:12px!important;font-weight:750!important;letter-spacing:.10em!important;color:#16647a!important;text-transform:uppercase!important}

@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from pathlib import Path
 import json, re
+from html import escape
 import streamlit as st
 from . import evidence as ev, reports, updates
 
@@ -19,6 +20,33 @@ def _slug(country: str)->str:
 def _link(link: str, text: str='View original source'):
     link=ev.url(link)
     if link: st.markdown(f'[{text}]({link})')
+
+
+def _light_notice(message: str, kind: str = 'info') -> None:
+    """Accessible, light-background notices independent of Streamlit's dark-alert internals.
+
+    Native Streamlit alerts can include a dark BaseWeb notification child even
+    when the outer stAlert element is set to a light background. This is why
+    the previous CSS-only fix did not address the user's screenshot.
+    """
+    variants = {
+        'info': ('#edf7fb', '#087e96', 'Information'),
+        'warning': ('#fff9eb', '#98630d', 'Attention'),
+        'error': ('#fff2f0', '#a23b36', 'Error'),
+        'success': ('#eef9f3', '#197553', 'Success'),
+    }
+    bg, accent, heading = variants.get(kind, variants['info'])
+    content = escape(str(message))
+    st.markdown(
+        f'<div class="rs-light-notice" role="status" '
+        f'style="background-color:{bg}!important;color:#17324a!important;'
+        f'border:1px solid #cbdde5;border-left:4px solid {accent};'
+        f'border-radius:8px;padding:14px 17px;margin:10px 0 18px;'
+        f'font-size:14px;line-height:1.58;">'
+        f'<span style="font-weight:700;color:{accent}!important;">{heading}.</span> '
+        f'<span style="color:#17324a!important;">{content}</span></div>',
+        unsafe_allow_html=True,
+    )
 
 
 def _boundary():
@@ -49,7 +77,7 @@ def _country_findings(data:dict,country:str):
     c3.metric('Interventions with specific sources',f"{m['Source-linked checklist items']} / {m['Total eligible interventions']}")
     _boundary()
     if not ctx['mechanisms']:
-        st.warning('This country has no detailed mechanism in the reviewed research subset. This is not evidence that it has no coordinating body. The global Atlas may contain additional findings.')
+        _light_notice('This country has no detailed mechanism in the reviewed research subset. This is not evidence that it has no coordinating body. The global Atlas may contain additional findings.', 'warning')
     else:
         st.subheader('Coordinating institutions in our reviewed research')
         for p in ctx['mechanisms']:
@@ -57,7 +85,7 @@ def _country_findings(data:dict,country:str):
             st.caption('Jurisdiction: '+p['jurisdiction']+' | Profile: '+p['profile_id'])
         st.subheader('Institutional information')
         linked=[r for r in ctx['institutional'] if ev.url(r.get('source_url',''))]
-        if not linked:st.info('No institutional source-linked records in this reviewed subset.')
+        if not linked:_light_notice('No institutional source-linked records in this reviewed subset.')
         for r in linked:
             with st.expander(r['domain']+' • '+(r.get('institutional_relationship') or 'Research evidence')):
                 st.write('**Institution**: '+(r.get('responsible_institution') or 'Not documented'))
@@ -67,7 +95,7 @@ def _country_findings(data:dict,country:str):
                 _link(r.get('source_url',''))
         st.subheader('Specific interventions with documented sources')
         items=[r for r in ev.checklist_prefill(data,country) if r['source_urls']]
-        if not items:st.info('No intervention-specific sources in the detailed research subset.')
+        if not items:_light_notice('No intervention-specific sources in the detailed research subset.')
         for r in items:
             with st.expander(r['matrix_id']+' • '+r['ideal_intervention']):
                 st.write('**Classification**: '+r['research_status'])
@@ -81,14 +109,14 @@ def _country_findings(data:dict,country:str):
         question=st.text_input('Your evidence question',placeholder='For example, what evidence is available about membership or national action plans?')
         submitted=st.form_submit_button('Retrieve relevant sources')
     if submitted:
-        if len(question.strip())<5:st.warning('Enter a more specific question.')
+        if len(question.strip())<5:_light_notice('Enter a more specific question.', 'warning')
         else:
             st.session_state['toolkit_retrieval_'+country]={"question":question,"hits":ev.retrieve(data,country,question)}
     retrieval=st.session_state.get('toolkit_retrieval_'+country)
     if retrieval:
         st.write('**Question**: '+retrieval['question'])
         hits=retrieval['hits']
-        if not hits:st.info('No matching source-linked excerpt found in the reviewed country records. Try a broader query or the optional freshness check.')
+        if not hits:_light_notice('No matching source-linked excerpt found in the reviewed country records. Try a broader query or the optional freshness check.')
         for i,h in enumerate(hits,1):
             with st.expander(f"Source {i} • {h['kind']} • {h['matrix_id'] or h['profile_id']}"):
                 st.write(h['snippet']);_link(h['source_url'])
@@ -113,7 +141,7 @@ def _benchmark(data:dict,country:str):
     st.write(f"**{country}** has {chosen['Reviewed mechanisms']} mechanism(s) in the reviewed detailed dataset, "
              f"with {chosen['Institutional domains with sources']} source-linked institutional domains "
              f"and {chosen['Source-linked checklist items']} source-linked intervention requirements.")
-    st.info('Countries with zero detailed records have not been assessed in this subset. Do not interpret zeros as lack of institutions. We cannot derive country performance rankings from these research counts.')
+    _light_notice('Countries with zero detailed records have not been assessed in this subset. Do not interpret zeros as lack of institutions. We cannot derive country performance rankings from these research counts.')
     table.sort(key=lambda r:(r['Country']!=country,r['Country']))
     st.dataframe(table,hide_index=True,use_container_width=True)
     if st.button('Prepare printable benchmarking brief',key='benchmark_report_'+_slug(country)):
@@ -159,7 +187,7 @@ def _pairwise(data:dict,country:str):
     st.subheader('Intervention-level differences in documented evidence')
     first=ev.checklist_prefill(data,country);other=ev.checklist_prefill(data,second)
     available=[(x,y) for x,y in zip(first,other) if x['source_urls'] or y['source_urls']]
-    if not available:st.info('No source-linked intervention records for this comparison.')
+    if not available:_light_notice('No source-linked intervention records for this comparison.')
     for x,y in available:
         with st.expander(x['matrix_id']+' • '+x['ideal_intervention']):
             cols=st.columns(2)
@@ -233,7 +261,7 @@ def _checklist(data:dict,country:str):
         items=saved['items'];cited=sum(bool(x['source_urls']) for x in items)
         x,y,z=st.columns(3)
         x.metric('Interventions',len(items));y.metric('Research-supported evidence leads',cited);z.metric('Your answered questions',len(saved['answers']))
-        st.warning('Private working draft. Source-linked plans are not proof of delivery. User answers are recorded separately and have not been approved or independently verified.')
+        _light_notice('Private working draft. Source-linked plans are not proof of delivery. User answers are recorded separately and have not been approved or independently verified.', 'warning')
         update_info=saved.get('candidate_updates',{})
         if update_info.get('status') not in ('Not requested',None):
             with st.expander('New information identified during this assessment',expanded=True):
@@ -292,7 +320,7 @@ def render():
     with st.container(key='road_safety_toolkit'):
         try:data=ev.load_data(str(DATA))
         except (FileNotFoundError,ValueError) as err:
-            st.error('The Toolkit could not load its research data: '+str(err));return
+            _light_notice('The Toolkit could not load its research data: '+str(err), 'error');return
         st.markdown('''<div class="rs-planner-band"><div class="rs-planner-kicker">GLOBAL ROAD SAFETY • GOVERNANCE TOOLS</div>
         <h1>Road Safety Institutional Toolkit</h1>
         <p>Explore country findings, compare international practices, and develop an evidence-grounded institutional improvement plan.</p></div>''',unsafe_allow_html=True)
