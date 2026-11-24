@@ -6,7 +6,7 @@ import json, re
 from html import escape
 from unified_brand import header_html
 import streamlit as st
-from . import evidence as ev, reports, updates, rag, domain_views
+from . import evidence as ev, reports, updates, rag, domain_views, agent_workspace
 
 ROOT=Path(__file__).resolve().parent.parent
 DATA=ROOT/'data'
@@ -203,38 +203,7 @@ def _country_findings(data:dict,country:str):
                 for u in r['source_urls']:_link(u)
     if not ctx['mechanisms']:
         _render_country_domain_grid(data,country)
-    st.divider()
-    st.subheader('Road Safety Intelligence Agent')
-    st.caption('Ask a question about '+country+'. The Road Safety Intelligence Agent retrieves source-linked research excerpts from this country only. '
-               'It does not search the open web when answering. The current corpus contains reviewed source notes, '
-               'not complete copies of every official document.')
-    with st.form('research_question_form'):
-        question=st.text_input('Your evidence question',placeholder='For example, what sources establish the coordinating body and its mandate?')
-        submitted=st.form_submit_button('Retrieve relevant evidence')
-    if submitted:
-        if len(question.strip())<5:
-            _light_notice('Enter a more specific question.', 'warning')
-        else:
-            st.session_state['toolkit_retrieval_'+country]={
-                'question':question,
-                'hits':rag.retrieve(data,country,question,data_dir=DATA,limit=8),
-            }
-            st.session_state.pop('rag_summary_'+country,None)
-            st.session_state.pop('rag_word_'+_slug(country),None)
-    retrieval=st.session_state.get('toolkit_retrieval_'+country)
-    if retrieval:
-        st.write('**Question:** '+retrieval['question'])
-        hits=retrieval['hits']
-        _display_retrieved(hits)
-        if hits and updates.api_key() and st.button('Generate cited AI analysis',key='rag_'+country):
-            with st.spinner('Synthesizing the indexed evidence...'):
-                st.session_state['rag_summary_'+country]=rag.synthesis(retrieval['question'],hits)
-        if hits and not updates.api_key():
-            st.caption('Add an OpenAI API key in Streamlit Secrets to enable AI synthesis. Indexed evidence search works without it.')
-        if st.session_state.get('rag_summary_'+country):
-            st.session_state['rag_question_'+_slug(country)]=retrieval['question']
-            st.subheader('Intelligence Agent: cited analysis')
-            _display_grounded_result(st.session_state['rag_summary_'+country],hits,country)
+    st.caption('For a source-grounded question about these findings, use the Road Safety Intelligence Agent above.')
     _update_check(country,ctx,'recent changes to coordinating institutions, mandates, membership and national strategies','find_'+country)
     if st.button('Prepare printable country findings report',key='word_'+country):
         st.session_state['doc_country_'+country]=reports.word_country(data,country)
@@ -468,50 +437,7 @@ def _pairwise(data:dict,country:str):
                     st.write(r['research_status'])
                     st.write(r['documented_action'] or 'Not verified in reviewed source-specific data')
                     for u in r['source_urls']:_link(u)
-    st.divider()
-    st.subheader('Generate a source-grounded analytical comparison')
-    st.caption('The retriever selects separate country-specific excerpts before any model call. '
-               'Neither country borrows evidence from the other.')
-    topics={
-        'Coordination and mandates':'coordination national road safety institution mandate strategy government',
-        'Membership and representation':'membership coordination council agencies ministry government participation',
-        'Strategies and action plans':'national road safety strategy programme action plan implementation',
-        'Accountability and monitoring':'coordination responsibilities implementation evidence monitoring accountability',
-    }
-    topic=st.selectbox('Comparison focus',list(topics),key='rag_pair_topic_'+_slug(country)+'_'+_slug(second))
-    pairkey=_slug(country+'_vs_'+second)
-    query=f"Compare {country} and {second} regarding {topics[topic]}, distinguishing the documented governance arrangements and evidence limitations."
-    if st.button('Retrieve comparable source excerpts',key='rag_pair_retrieve_'+pairkey):
-        with st.spinner('Retrieving independently from both country records...'):
-            hits=rag.retrieve_pair(data,country,second,query,data_dir=DATA,per_country=5)
-        st.session_state['rag_pair_'+pairkey]={'question':query,'hits':hits}
-        st.session_state.pop('rag_pair_answer_'+pairkey,None)
-        st.session_state.pop('rag_word_'+pairkey,None)
-    retrieved_pair=st.session_state.get('rag_pair_'+pairkey)
-    # Each focus requires its own retrieval. Never show an answer produced for a
-    # different prompt merely because the same country pair is selected.
-    if retrieved_pair and retrieved_pair.get('question')!=query:
-        st.session_state.pop('rag_pair_'+pairkey,None)
-        st.session_state.pop('rag_pair_answer_'+pairkey,None)
-        st.session_state.pop('rag_word_'+pairkey,None)
-        retrieved_pair=None
-        st.caption('Comparison focus changed. Select Retrieve comparable source excerpts to update the RAG evidence.')
-    if retrieved_pair:
-        hits=retrieved_pair['hits']
-        n1=sum(x['country']==country for x in hits)
-        n2=sum(x['country']==second for x in hits)
-        st.write(f'Retrieved {n1} evidence excerpts for {country} and {n2} for {second}.')
-        _display_retrieved(hits)
-        if n1 and n2 and updates.api_key() and st.button('Generate citation-checked pairwise analysis',key='rag_pair_generate_'+pairkey):
-            with st.spinner('Preparing evidence-grounded comparison...'):
-                st.session_state['rag_pair_answer_'+pairkey]=rag.synthesis(retrieved_pair['question'],hits)
-        elif not n1 or not n2:
-            _light_notice('This dataset cannot support a source-grounded pairwise analysis of the selected topic for both countries. Compare the available records, and gather missing evidence first.', 'warning')
-        elif not updates.api_key():
-            st.caption('AI comparison needs an OpenAI API key. Source retrieval and the detailed tables above work without it.')
-        if st.session_state.get('rag_pair_answer_'+pairkey):
-            st.session_state['rag_question_'+pairkey]=retrieved_pair['question']
-            _display_grounded_result(st.session_state['rag_pair_answer_'+pairkey],hits,pairkey)
+    st.caption('For an open-ended, cited comparison, use the Road Safety Intelligence Agent above and select Compare two countries.')
     st.caption('Adaptation of practices to a different country requires national legal, financial, institutional and operational review.')
     pairrows=[]
     for item in comparison_rows:
@@ -678,6 +604,139 @@ def _render_toolkit_intro() -> None:
     st.html(existing_styles + standard_header + '<div class="rst-main">' + after_main)
 
 
+
+_AGENT_CSS = """
+<style id="rs-agent-workspace-style">
+.st-key-rs_agent_workspace {
+  background: #f4f9fd !important;
+  border: 1px solid #cfdfed !important;
+  border-left: 5px solid #3e8ede !important;
+  border-radius: 12px !important;
+  padding: 21px 25px 18px !important;
+  margin: 15px 0 28px !important;
+  color: #17344e !important;
+  color-scheme: light !important;
+}
+.st-key-rs_agent_workspace [data-testid="stForm"] {
+  background: #ffffff !important;
+  border: 1px solid #c8dce9 !important;
+  border-radius: 10px !important;
+  padding: 15px 18px !important;
+}
+.st-key-rs_agent_workspace :is(input,textarea) {
+  background: #fff !important;
+  color: #16354b !important;
+  -webkit-text-fill-color: #16354b !important;
+}
+.st-key-rs_agent_workspace [data-testid="stFormSubmitButton"] button {
+  background: #246eb4 !important;
+  border-color: #246eb4 !important;
+  color: #fff !important;
+  -webkit-text-fill-color: #fff !important;
+  font-weight: 750 !important;
+}
+.st-key-rs_agent_workspace [data-testid="stFormSubmitButton"] button * {
+  color: #fff !important;
+  -webkit-text-fill-color: #fff !important;
+}
+.st-key-rs_agent_workspace .rs-agent-kicker {
+  color: #2874ad !important;
+  font-weight: 800;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  font-size: 12px;
+}
+.st-key-rs_agent_workspace .rs-agent-head h2 {
+  font-size: clamp(23px, 2.2vw, 30px) !important;
+  color: #123b61 !important;
+  margin: 5px 0 7px !important;
+  font-weight: 820 !important;
+}
+.st-key-rs_agent_workspace .rs-agent-head p {
+  color: #4b6578 !important;
+  font-size: 14px !important;
+  line-height: 1.6 !important;
+  max-width: 1000px;
+  margin: 0 0 10px !important;
+}
+@media(max-width:700px) {
+  .st-key-rs_agent_workspace {padding: 14px 13px !important;}
+}
+</style>
+"""
+
+
+def _agent_workspace(data: dict, country: str):
+    """Prominent one-question AI workspace for either one or two countries."""
+    st.html(_AGENT_CSS)
+    with st.container(key='rs_agent_workspace'):
+        st.html('''<div class="rs-agent-head">
+            <div class="rs-agent-kicker">Ask the evidence</div>
+            <h2>Road Safety Intelligence Agent</h2>
+            <p>Ask a question about one country or compare two countries. The Agent retrieves the
+            relevant reviewed research, checks source identifiers, and prepares a cited answer when
+            AI access is enabled. Missing evidence is identified rather than invented.</p>
+            </div>''')
+        scope = st.radio('What would you like to ask about?',
+                         ['This country', 'Compare two countries'], horizontal=True,
+                         key='rs_agent_scope')
+        peer = None
+        if scope == 'Compare two countries':
+            choices = [c for c in data['countries'] if c != country]
+            peer_default = choices.index('Sweden') if 'Sweden' in choices else 0
+            peer = st.selectbox('Compare '+country+' with', choices, index=peer_default,
+                                key='rs_agent_peer')
+            example = (f'Compare {country} and {peer} across governance, strategic planning, '
+                       'coordination and implementation responsibilities. Cite the research '
+                       'supporting each difference and identify what is unverified.')
+            st.caption('Evidence is retrieved independently for each country. A comparison is not generated if either country lacks source-linked records.')
+        else:
+            example = (f'What is documented about the mandate and responsibilities of road safety '
+                       f'coordinating bodies in {country}, and what still requires verification?')
+        st.caption('Example question: '+example)
+        with st.form('rs_agent_question_form', clear_on_submit=False):
+            question = st.text_area('Your question', placeholder=example,
+                                    height=112, max_chars=550, key='rs_agent_question_input')
+            submitted = st.form_submit_button('Ask Road Safety Intelligence Agent',
+                                               type='primary', use_container_width=True)
+        if submitted:
+            try:
+                request = agent_workspace.AgentRequest(
+                    primary_country=country, comparison_country=peer, question=question)
+                with st.spinner('Retrieving source-linked research and preparing a supported answer...'):
+                    payload = agent_workspace.ask(data, request, DATA,
+                                                  run_ai=bool(updates.api_key()))
+                st.session_state['rs_agent_latest_answer'] = payload
+            except ValueError as err:
+                st.session_state.pop('rs_agent_latest_answer', None)
+                _light_notice(str(err), 'warning')
+        output = st.session_state.get('rs_agent_latest_answer')
+        if not output:
+            st.caption('Existing research search is available without an API key. AI synthesis requires the key configured in Streamlit Secrets. Online update checks are a separate, optional action.')
+            return
+        if output['first'] != country or output['second'] != peer or output['scope'] != ('compare' if peer else 'country'):
+            st.caption('Country selection changed. Submit the question again to retrieve evidence for the new selection.')
+            return
+        st.divider()
+        st.markdown('### Agent response')
+        if output['counts']:
+            st.caption('Source excerpts retrieved: '+', '.join(f'{c}: {n}' for c,n in output['counts'].items()))
+        if not output['sufficient_for_ai']:
+            _light_notice(
+                'The reviewed research does not provide source-linked evidence for every selected country. '
+                'A comparative AI answer has not been generated. Review the available evidence below and verify the missing information.',
+                'warning')
+        elif output['result']:
+            label = 'Agent_'+output['label']
+            st.session_state['rag_question_'+_slug(label)] = output['question']
+            _display_grounded_result(output['result'], output['hits'], label)
+        else:
+            _light_notice('Retrieved evidence is available below. Configure OPENAI_API_KEY in Streamlit Secrets to enable citation-checked AI analysis.')
+        with st.expander(f'View the {len(output["hits"])} retrieved source excerpts', expanded=not bool(output['result'])):
+            _display_retrieved(output['hits'])
+        st.caption('Evidence is limited to our reviewed country records and any explicitly curated documents. '
+                   'No general internet search or automatic incorporation of new claims occurs when you ask a question.')
+
 def render():
     with st.container(key='road_safety_toolkit'):
         try:data=ev.load_data(str(DATA))
@@ -693,6 +752,8 @@ def render():
                              on_change=_context_changed,args=('country',))
         if 'rs_context_country' not in st.session_state:
             st.session_state['rs_context_country']=country
+        _agent_workspace(data,country)
+        st.markdown('### Or use the guided Toolkit services')
         mode=st.radio('What would you like to do?',(
             'Explore country findings','Benchmark internationally','Compare with another country','Generate my institutional checklist'),
             key='rs_toolkit_mode',horizontal=True,
