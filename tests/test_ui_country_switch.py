@@ -78,6 +78,7 @@ def test_switch_country_and_mode_updates_view(monkeypatch):
     monkeypatch.setattr(ui, '_benchmark', lambda d, country: calls.append(('benchmark', country)))
     monkeypatch.setattr(ui, '_pairwise', lambda d, country: calls.append(('compare', country)))
     monkeypatch.setattr(ui, '_checklist', lambda d, country: calls.append(('checklist', country)))
+    monkeypatch.setattr(ui, '_agent_workspace', lambda d, country: calls.append(('agent', country)))
 
     fake.selection = {'Select your country':'Estonia',
                       'What would you like to do?':'Explore country findings'}
