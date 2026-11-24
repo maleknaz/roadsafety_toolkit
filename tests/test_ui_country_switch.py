@@ -78,13 +78,13 @@ def test_switch_country_and_mode_updates_view(monkeypatch):
                       'What would you like to do?':'Explore country findings'}
     ui.render()
     assert calls[-1] == ('findings', 'Estonia')
-    assert 'Currently viewing:</strong> Estonia' in fake.markdowns[-1]
+    assert any('Currently viewing:</strong> Estonia' in s for s in fake.markdowns)
 
     fake.selection['Select your country'] = 'Sweden'
     ui.render()
     assert calls[-1] == ('findings','Sweden')
     assert fake.session_state['rs_context_country'] == 'Sweden'
-    assert 'Currently viewing:</strong> Sweden' in fake.markdowns[-1]
+    assert any('Currently viewing:</strong> Sweden' in s for s in fake.markdowns)
 
     fake.selection['What would you like to do?'] = 'Benchmark internationally'
     ui.render()

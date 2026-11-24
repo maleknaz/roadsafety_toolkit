@@ -34,6 +34,8 @@ body>header.hero h1 em,body>header.hero h1 .title-accent{color:#80d5f0!important
 body>header.hero p{font-family:"Segoe UI",Arial,sans-serif!important;font-size:14px!important;line-height:1.5!important;color:#e1edf5!important}
 @media(max-width:780px){.grs-fixed-banner .grs-band-inner{padding:0 14px}.grs-fixed-banner .grs-section{font-size:10px}.grs-fixed-banner .grs-detail{display:none}.grs-fixed-banner .grs-label{font-size:11px;letter-spacing:.045em}body>header.hero{height:auto!important;min-height:330px!important;max-height:none!important}body>header.hero h1{font-size:28px!important}}
 </style>
+
+
 <style id="rs-lab-inspired-theme">
 :root{color-scheme:light;--rs-lab-ink:#193a50;--rs-lab-muted:#5b7382;
   --rs-lab-teal:#087d8d;--rs-lab-bg:#f7fafb;--rs-lab-line:#dce7e9;}
@@ -50,7 +52,7 @@ body>.grs-fixed-banner .grs-mark,body>.grs-consistent-masthead .grs-mark{
   background:#0b8798!important;}
 body>header.hero{
   position:relative!important;isolation:isolate!important;box-sizing:border-box!important;
-  min-height:320px!important;max-height:320px!important;height:320px!important;
+  min-height:405px!important;max-height:405px!important;height:405px!important;
   overflow:hidden!important;border-bottom:0!important;
   background:linear-gradient(115deg,#0e304b 0%,#125173 70%,#0b7780 140%)!important;}
 body>header.hero::after{
@@ -84,7 +86,19 @@ body :is(a,[role="button"]):focus-visible{
  body>header.hero h1{font-size:clamp(24px,7vw,32px)!important;}
  body>.grs-fixed-banner .grs-label,body>.grs-consistent-masthead .grs-brand{letter-spacing:.025em!important;}
 }
+
+/* Original lane-network artwork carries the same visual identity across research sections. */
+body>header.hero:not(.rs-lab-home-hero)::after{
+ content:""!important;position:absolute!important;right:2.8%!important;top:41px!important;
+ width:420px!important;height:315px!important;border:0!important;border-radius:0!important;
+ box-shadow:none!important;opacity:.38!important;pointer-events:none!important;
+ background-repeat:no-repeat!important;background-position:center!important;
+ background-size:contain!important;background-image:url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA0MjAgMzIwIj4KPGNpcmNsZSBjeD0iMjM1IiBjeT0iMTU3IiByPSIxMzIiIHN0cm9rZT0iIzg0REJEMiIgc3Ryb2tlLXdpZHRoPSIxLjQiIHN0cm9rZS1kYXNoYXJyYXk9IjUgOSIgb3BhY2l0eT0iLjQ1IiBmaWxsPSJub25lIi8+CjxwYXRoIGQ9Ik0yMyAzMDVDNjMgMjQ2IDEyNSAyNjIgMTYyIDE4NVMyODQgODcgMzk1IDE3IiBmaWxsPSJub25lIiBzdHJva2U9IiMwQjMwNDQiIHN0cm9rZS13aWR0aD0iNjciIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgo8cGF0aCBkPSJNMjMgMzA1QzYzIDI0NiAxMjUgMjYyIDE2MiAxODVTMjg0IDg3IDM5NSAxNyIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjQkZFQ0U0IiBzdHJva2Utd2lkdGg9IjMiIHN0cm9rZS1kYXNoYXJyYXk9IjEyIDE0Ii8+CjxwYXRoIGQ9Ik0yNCAzMDVDNjMgMjQ2IDEyNSAyNjIgMTYyIDE4NVMyODQgODcgMzk1IDE3IiBmaWxsPSJub25lIiBzdHJva2U9IiM1RUM4QzgiIHN0cm9rZS13aWR0aD0iNjgiIG9wYWNpdHk9Ii4xMiIvPgo8ZyBmaWxsPSIjMEU3MTgwIiBzdHJva2U9IiNDNUYwRTkiIHN0cm9rZS13aWR0aD0iMyI+PGNpcmNsZSBjeD0iNTQiIGN5PSIyNjciIHI9IjEyIi8+PGNpcmNsZSBjeD0iMTY0IiBjeT0iMTgzIiByPSIxMiIvPjxjaXJjbGUgY3g9IjI4NSIgY3k9IjkyIiByPSIxMiIvPjwvZz4KPGcgZmlsbD0iI0VDRDA4MSI+PGNpcmNsZSBjeD0iMTIwIiBjeT0iOTMiIHI9IjQiLz48Y2lyY2xlIGN4PSIzNDkiIGN5PSIyNjIiIHI9IjQiLz48L2c+PC9zdmc+")!important;
+}
+@media(max-width:800px){body>header.hero:not(.rs-lab-home-hero)::after{opacity:.14!important;right:-160px!important}}
 </style>
+
+
 
 </head><body><div class="grs-fixed-banner" role="banner"><div class="grs-band"></div><div class="grs-band-inner"><div class="grs-label"><span class="grs-mark"></span>Road Safety Toolkit <span class="grs-section">/ Existing documents</span></div><span class="grs-detail">Research dashboard · November 2026</span></div></div>
 

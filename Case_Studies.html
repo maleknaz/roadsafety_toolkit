@@ -185,6 +185,8 @@ body > header.hero .hero-note,body > header.hero small {font:400 11px/1.35 "Sego
 .analytics-stat-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:16px 0}.analytics-stat{background:#f8fbfd;border:1px solid #dbe8ed;border-radius:9px;padding:15px}.analytics-stat b{font-size:27px;color:#143e59;display:block}.analytics-stat small{color:#607b8a}.analytics-note{color:#587487;font-size:12px}.analytics-table-wrap{overflow-x:auto;border:1px solid #dce8ef;border-radius:8px;margin:12px 0 18px}.analytics-table{width:100%;border-collapse:collapse;font-size:12px}.analytics-table th,.analytics-table td{padding:9px 11px;white-space:nowrap;text-align:left;border-bottom:1px solid #e5edf2}.analytics-table th{background:#eaf3f8}.analytics-table tr:nth-child(even){background:#f8fbfd}.analytics-table .domain-label{white-space:normal;min-width:210px}.data-mini-stack{display:flex;height:12px;width:140px;background:#e9edef;border-radius:4px;overflow:hidden}.data-mini-stack span{height:100%;display:inline-block}.exact-seg{background:#2a9578}.partial-seg{background:#8ec0d5}.unknown-seg{background:#d5dfe4}.analytics-key{display:flex;flex-wrap:wrap;gap:13px;margin:9px 0;font-size:11px;color:#536f82}.analytics-key i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px}.score{min-width:116px;text-align:center!important}.score.review{background:#e5f4ee}.score.missing{background:#f2f4f6}.tiny{display:block;font-size:10px;font-weight:400;color:#61798b;white-space:normal}.detail-card{grid-column:1/-1;min-width:0}.detail-card h2{font-size:24px}.evidence-entry{padding:13px 0;border-top:1px solid #deebf0}.evidence-entry h4{margin:0;color:#0e547b;font-size:15px}.evidence-entry p{font-size:12.5px;margin:5px 0;overflow-wrap:anywhere}.case-detail-head{display:flex;justify-content:space-between;align-items:center;gap:16px}.case-close{padding:9px 13px;border:1px solid #9fc5d9;background:#e9f6fa;border-radius:7px;cursor:pointer;white-space:nowrap}
 @media(max-width:950px){.analytics-stat-grid{grid-template-columns:repeat(2,1fr)}}@media(max-width:600px){.analytics-stat{padding:10px}.analytics-stat b{font-size:21px}}
 </style>
+
+
 <style id="rs-lab-inspired-theme">
 :root{color-scheme:light;--rs-lab-ink:#193a50;--rs-lab-muted:#5b7382;
   --rs-lab-teal:#087d8d;--rs-lab-bg:#f7fafb;--rs-lab-line:#dce7e9;}
@@ -201,7 +203,7 @@ body>.grs-fixed-banner .grs-mark,body>.grs-consistent-masthead .grs-mark{
   background:#0b8798!important;}
 body>header.hero{
   position:relative!important;isolation:isolate!important;box-sizing:border-box!important;
-  min-height:320px!important;max-height:320px!important;height:320px!important;
+  min-height:405px!important;max-height:405px!important;height:405px!important;
   overflow:hidden!important;border-bottom:0!important;
   background:linear-gradient(115deg,#0e304b 0%,#125173 70%,#0b7780 140%)!important;}
 body>header.hero::after{
@@ -235,7 +237,19 @@ body :is(a,[role="button"]):focus-visible{
  body>header.hero h1{font-size:clamp(24px,7vw,32px)!important;}
  body>.grs-fixed-banner .grs-label,body>.grs-consistent-masthead .grs-brand{letter-spacing:.025em!important;}
 }
+
+/* Original lane-network artwork carries the same visual identity across research sections. */
+body>header.hero:not(.rs-lab-home-hero)::after{
+ content:""!important;position:absolute!important;right:2.8%!important;top:41px!important;
+ width:420px!important;height:315px!important;border:0!important;border-radius:0!important;
+ box-shadow:none!important;opacity:.38!important;pointer-events:none!important;
+ background-repeat:no-repeat!important;background-position:center!important;
+ background-size:contain!important;background-image:url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA0MjAgMzIwIj4KPGNpcmNsZSBjeD0iMjM1IiBjeT0iMTU3IiByPSIxMzIiIHN0cm9rZT0iIzg0REJEMiIgc3Ryb2tlLXdpZHRoPSIxLjQiIHN0cm9rZS1kYXNoYXJyYXk9IjUgOSIgb3BhY2l0eT0iLjQ1IiBmaWxsPSJub25lIi8+CjxwYXRoIGQ9Ik0yMyAzMDVDNjMgMjQ2IDEyNSAyNjIgMTYyIDE4NVMyODQgODcgMzk1IDE3IiBmaWxsPSJub25lIiBzdHJva2U9IiMwQjMwNDQiIHN0cm9rZS13aWR0aD0iNjciIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgo8cGF0aCBkPSJNMjMgMzA1QzYzIDI0NiAxMjUgMjYyIDE2MiAxODVTMjg0IDg3IDM5NSAxNyIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjQkZFQ0U0IiBzdHJva2Utd2lkdGg9IjMiIHN0cm9rZS1kYXNoYXJyYXk9IjEyIDE0Ii8+CjxwYXRoIGQ9Ik0yNCAzMDVDNjMgMjQ2IDEyNSAyNjIgMTYyIDE4NVMyODQgODcgMzk1IDE3IiBmaWxsPSJub25lIiBzdHJva2U9IiM1RUM4QzgiIHN0cm9rZS13aWR0aD0iNjgiIG9wYWNpdHk9Ii4xMiIvPgo8ZyBmaWxsPSIjMEU3MTgwIiBzdHJva2U9IiNDNUYwRTkiIHN0cm9rZS13aWR0aD0iMyI+PGNpcmNsZSBjeD0iNTQiIGN5PSIyNjciIHI9IjEyIi8+PGNpcmNsZSBjeD0iMTY0IiBjeT0iMTgzIiByPSIxMiIvPjxjaXJjbGUgY3g9IjI4NSIgY3k9IjkyIiByPSIxMiIvPjwvZz4KPGcgZmlsbD0iI0VDRDA4MSI+PGNpcmNsZSBjeD0iMTIwIiBjeT0iOTMiIHI9IjQiLz48Y2lyY2xlIGN4PSIzNDkiIGN5PSIyNjIiIHI9IjQiLz48L2c+PC9zdmc+")!important;
+}
+@media(max-width:800px){body>header.hero:not(.rs-lab-home-hero)::after{opacity:.14!important;right:-160px!important}}
 </style>
+
+
 
 </head><body><div aria-label="Global Road Safety page header" class="grs-consistent-masthead"><div aria-hidden="true" class="grs-stripe"></div><div class="grs-mast-inner"><div class="grs-brand"><span aria-hidden="true" class="grs-mark"></span><span>ROAD SAFETY TOOLKIT</span><span class="grs-section">/ Country case studies</span></div><span class="grs-date">Research dashboard · November 2026</span></div></div><header class="hero"><div class="container"><div class="eyebrow">Global road safety / evidence-based governance</div><h1>How do <em>road safety coordinating bodies</em> match the ideal framework?</h1><p>Country-by-country evidence on policy authority, institutional representation, planned Safe System responsibilities and gaps. A programme does not prove delivery or impact.</p><div class="hero-tags"><span>26 countries / 27 mechanisms</span><span>17 domains and 72 defined interventions</span><span>Evidence first; Not verified where evidence is insufficient</span></div></div></header><main class="container main"><section class="kpis"><div class="kpi"><strong>26</strong><small>Countries</small></div><div class="kpi"><strong>27</strong><small>Coordinating mechanisms</small></div><div class="kpi"><strong>24 / 3</strong><small>Group 1 / Group 2</small></div><div class="kpi"><strong>75</strong><small>Source-specific checklist findings</small></div></section><section aria-labelledby="case-groups-heading" class="panel case-explainer" id="case-methodology">
 <div class="section-label">How to read this research</div>

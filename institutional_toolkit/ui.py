@@ -5,7 +5,7 @@ from pathlib import Path
 import json, re
 from html import escape
 import streamlit as st
-from . import evidence as ev, reports, updates, rag
+from . import evidence as ev, reports, updates, rag, domain_views
 
 ROOT=Path(__file__).resolve().parent.parent
 DATA=ROOT/'data'
@@ -190,15 +190,7 @@ def _country_findings(data:dict,country:str):
         for p in ctx['mechanisms']:
             st.write(f"**{p['coordinating_body']}**  ")
             st.caption('Jurisdiction: '+p['jurisdiction']+' | Profile: '+p['profile_id'])
-        st.subheader('Institutional information')
-        linked=[r for r in ctx['institutional'] if ev.url(r.get('source_url',''))]
-        if not linked:_light_notice('No institutional source-linked records in this reviewed subset.')
-        for r in linked:
-            with st.expander(r['domain']+' • '+(r.get('institutional_relationship') or 'Research evidence')):
-                st.write('**Institution**: '+(r.get('responsible_institution') or 'Not documented'))
-                st.write('**Responsibility**: '+(r.get('functional_responsibility') or 'Not verified'))
-                st.write('**Qualification**: '+(r.get('classification_rationale') or 'Not stated'))
-                _link(r.get('source_url',''))
+        _render_country_domain_grid(data,country)
         st.subheader('Specific interventions with documented sources')
         items=[r for r in ev.checklist_prefill(data,country) if r['source_urls']]
         if not items:_light_notice('No intervention-specific sources in the detailed research subset.')
@@ -208,6 +200,8 @@ def _country_findings(data:dict,country:str):
                 st.write(r['documented_action'] or 'No intervention details recorded')
                 if r['evidence_note']:st.caption('Research limitation: '+r['evidence_note'])
                 for u in r['source_urls']:_link(u)
+    if not ctx['mechanisms']:
+        _render_country_domain_grid(data,country)
     st.divider()
     st.subheader('Ask the reviewed country evidence (controlled RAG)')
     st.caption('The system retrieves source-linked research excerpts from the selected country only. '
@@ -273,152 +267,25 @@ def _benchmark(data:dict,country:str):
                        mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 
-def _domain_comparison_table(row:dict,country:str,second:str) -> str:
-    """Safe, source-linked domain detail table without the repeated membership field."""
-    def cell_text(name:str,field:str,default:str) -> str:
-        return escape(str(row[name].get(field) or default))
-    def source_cell(name:str) -> str:
-        source=ev.url(row[name].get('source_url',''))
-        return ('<a href="'+escape(source,quote=True)+'" target="_blank" '
-                'rel="noopener noreferrer">Open source</a>') if source else 'No linked source'
-    def table_row(label:str,values:tuple[str,str]) -> str:
-        return ('<tr><th scope="row">'+escape(label)+'</th><td>'+values[0]
-                +'</td><td>'+values[1]+'</td></tr>')
-    field_rows=[
-        ('Evidence status','evidence','No linked record'),
-        ('Institution','responsible_institution','Not established in reviewed sources'),
-        ('Function','functional_responsibility','Not established in reviewed sources'),
-        ('Implementation','implementation_evidence','Not established in reviewed sources'),
-        ('Research qualification','rationale','No additional qualification supplied'),
-    ]
-    rows=''.join(table_row(label,(cell_text(country,field,default),
-                                   cell_text(second,field,default)))
-                 for label,field,default in field_rows)
-    rows+=table_row('Supporting source',(source_cell(country),source_cell(second)))
-    return ('<div class="rs-domain-comparison-wrap"><table class="rs-domain-comparison-table">'
-            '<thead><tr><th scope="col">Evidence field</th><th scope="col">'
-            +escape(country)+'</th><th scope="col">'+escape(second)
-            +'</th></tr></thead><tbody>'+rows+'</tbody></table></div>')
-
-
-
 def _domain_grid_html(rows: list[dict], country: str, second: str) -> str:
-    """One browser-rendered responsive grid, independent of Streamlit column layout.
-
-    All 17 cards live in ONE CSS grid rather than 17 separate Streamlit
-    containers. A card click changes ONLY the detail table inside this
-    view and does not require a rerun. Source text is HTML-escaped by the
-    existing safe card/table helpers before entering the page.
-    """
-    if not rows:
-        return '<!doctype html><html><body><p>No reviewed domains available.</p></body></html>'
-    def has_source(item):
-        return bool(item[country].get('source_url') or item[second].get('source_url'))
-    first = next((i for i, item in enumerate(rows) if has_source(item)), 0)
-    cards = []
-    templates = []
-    for i, row in enumerate(rows):
-        status_a = bool(row[country].get('source_url'))
-        status_b = bool(row[second].get('source_url'))
-        # Small CSS-neutral badges; never interpret coverage as performance.
-        badge_a = 'Source linked' if status_a else 'Not linked'
-        badge_b = 'Source linked' if status_b else 'Not linked'
-        cards.append(
-            '<button type="button" class="domain-card" data-domain-index="'+str(i)+'"'
-            ' aria-pressed="'+('true' if i==first else 'false')+'"'
-            ' aria-controls="domain-detail">'
-            '<span class="card-heading">'+escape(str(row['domain']))+'</span>'
-            '<span class="card-meta"><span>'+escape(country)+'</span><em class="'+('linked' if status_a else 'unlinked')+'">'+badge_a+'</em></span>'
-            '<span class="card-meta"><span>'+escape(second)+'</span><em class="'+('linked' if status_b else 'unlinked')+'">'+badge_b+'</em></span>'
-            '<span class="view-hint">'+('Selected · View below' if i==first else 'View comparison')+'</span>'
-            '</button>'
-        )
-        templates.append(
-            '<template id="domain-template-'+str(i)+'">'
-            '<h3>'+escape(str(row['domain']))+'</h3>'
-            +_domain_comparison_table(row,country,second)
-            +'<p class="evidence-note">A source-linked institutional record does not establish implementation quality. '
-             'Missing documentation does not demonstrate absence.</p>'
-            +'</template>'
-        )
-    css = """<style>
-    :root{color-scheme:light;}*{box-sizing:border-box}
-    html,body{margin:0;padding:0;background:#f7fafb;color:#19394e;font-family:Arial,'Segoe UI',sans-serif}
-    .domain-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;padding:2px 2px 12px}
-    .domain-card{display:flex;flex-direction:column;align-items:stretch;gap:8px;min-height:138px;width:100%;
-      padding:13px 14px;text-align:left;background:#fff;color:#17324a;border:1px solid #d8e6e9;
-      border-radius:13px;box-shadow:0 8px 20px rgba(20,50,70,.035);cursor:pointer;transition:background .12s,border-color .12s}
-    .domain-card:hover{background:#eef8f8;border-color:#66b7b8}
-    .domain-card:focus-visible{outline:3px solid #087e96;outline-offset:2px}
-    .domain-card[aria-pressed=true]{background:#e6f5f4;border:2px solid #088b98;padding:12px 13px}
-    .card-heading{color:#11364f;font-size:14px;font-weight:750;line-height:1.25;overflow-wrap:anywhere;flex:1}
-    .card-meta{font-size:11px;display:flex;justify-content:space-between;gap:6px;color:#476277;line-height:1.25}
-    .card-meta span{overflow-wrap:anywhere}
-    .card-meta em{font-style:normal;font-weight:700;white-space:nowrap;color:#567386}
-    .card-meta em.linked{color:#087d75}
-    .view-hint{color:#006b88;font-size:11px;font-weight:650;padding-top:3px}
-    #domain-detail{margin:7px 2px 16px;padding:19px 21px;background:#fff;border:1px solid #d6e5e8;border-radius:13px}
-    #domain-detail h3{font-size:19px;margin:0 0 13px;font-weight:750;color:#11364f}
-    .evidence-note{font-size:12px;color:#566f82;margin:11px 0 2px}
-    .rs-domain-comparison-wrap{overflow-x:auto;border:1px solid #ccdfe7;border-radius:9px;background:#fff;margin:8px 0}
-    .rs-domain-comparison-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:13px;color:#17324a;background:#fff}
-    .rs-domain-comparison-table thead th{background:#eef6fa;color:#12384d;font-weight:750;text-align:left;padding:12px 14px;border-bottom:1px solid #bcd3df}
-    .rs-domain-comparison-table th:first-child{width:19%}
-    .rs-domain-comparison-table th,.rs-domain-comparison-table td{padding:11px 13px;text-align:left;vertical-align:top;overflow-wrap:anywhere;border-bottom:1px solid #dce7ed}
-    .rs-domain-comparison-table tbody th{font-weight:650;background:#f6fafc;color:#25475b}
-    .rs-domain-comparison-table tbody tr:last-child td,.rs-domain-comparison-table tbody tr:last-child th{border-bottom:none}
-    .rs-domain-comparison-table a{color:#08798f;text-decoration:underline}
-    @media(max-width:1100px){.domain-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
-    @media(max-width:790px){.domain-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-    @media(max-width:480px){.domain-grid{grid-template-columns:1fr}.domain-card{min-height:112px}.rs-domain-comparison-table{min-width:570px}}
-    </style>"""
-    js = """<script>
-    (function(){
-      'use strict';
-      const buttons=[...document.querySelectorAll('[data-domain-index]')];
-      const detail=document.getElementById('domain-detail');
-      function select(i){
-        const template=document.getElementById('domain-template-'+i);
-        if(!template)return;
-        detail.replaceChildren(template.content.cloneNode(true));
-        for(const b of buttons){
-          const active=b.dataset.domainIndex===String(i);
-          b.setAttribute('aria-pressed',active?'true':'false');
-          b.querySelector('.view-hint').textContent=active?'Selected · View below':'View comparison';
-        }
-        document.dispatchEvent(new Event('domain-content-changed'));
-      }
-      for(const b of buttons){b.addEventListener('click',()=>select(b.dataset.domainIndex));}
-      select(FIRST_INDEX);
-      // Ask Streamlit to resize the component when browser geometry changes.
-      // A fixed height is also supplied as fallback for older Streamlit versions.
-      function resize(){
-        const height=Math.ceil(document.documentElement.scrollHeight+12);
-        window.parent.postMessage({isStreamlitMessage:true,type:'streamlit:setFrameHeight',height:height},'*');
-      }
-      if('ResizeObserver' in window){new ResizeObserver(resize).observe(document.body)}
-      document.addEventListener('domain-content-changed',resize);
-      window.addEventListener('resize',resize);
-      resize();
-    })();
-    </script>""".replace('FIRST_INDEX',str(first))
-    return ('<!doctype html><html lang="en"><head><meta charset="utf-8">'
-            '<meta name="viewport" content="width=device-width,initial-scale=1">'
-            +css+'</head><body><div class="domain-grid" role="group" '
-            'aria-label="Institutional comparison domains">'+''.join(cards)
-            +'</div><section id="domain-detail" aria-live="polite"></section>'
-            +''.join(templates)+js+'</body></html>')
+    """Source-grounded responsive comparison cards, four across on desktop."""
+    return domain_views.comparison_view(rows, country, second)
 
 
 def _render_domain_grid(rows: list[dict], country: str, second: str) -> None:
-    """A true responsive 4/3/2/1-column grid, rendered in one iframe."""
-    st.subheader('Institutional comparison by domain')
-    st.caption('Select a domain card to see the full side-by-side evidence table. '
-               'A missing linked record is an evidence gap, not proof of institutional absence.')
+    """A self-contained browser grid that does not collapse into accordions."""
     import streamlit.components.v1 as components
-    # No st.columns here: Streamlit layout/CSS from other tabs cannot collapse
-    # this browser-native grid into a 17-item vertical accordion.
-    components.html(_domain_grid_html(rows, country, second), height=1080, scrolling=True)
+    st.subheader('Institutional comparison by domain')
+    st.caption('All 17 domains are shown in a grid. Select one to open its full comparison table below the cards. Membership fields are omitted.')
+    components.html(_domain_grid_html(rows, country, second), height=1010, scrolling=True)
+
+
+def _render_country_domain_grid(data:dict, country:str)->None:
+    """Country evidence across all domains, using the same tested card grid."""
+    import streamlit.components.v1 as components
+    st.subheader('Institutional evidence by domain')
+    st.caption('All 17 domains are displayed together. Click one for source-linked institutions and responsibilities; missing records are not evidence of absence.')
+    components.html(domain_views.country_view(data, country), height=1010, scrolling=True)
 
 
 def _pairwise(data:dict,country:str):
@@ -440,7 +307,8 @@ def _pairwise(data:dict,country:str):
     c2.metric(second+' • source-linked domains',f"{b['Institutional domains with sources']} / {b['Total domains']}")
     st.write(f"The reviewed dataset has {a['Source-linked checklist items']} intervention-specific source-linked items for {country} "
              f"and {b['Source-linked checklist items']} for {second}. This is **not** a ranking of road safety performance.")
-    _render_domain_grid(ev.compare(data,country,second),country,second)
+    comparison_rows = ev.compare(data,country,second)
+    _render_domain_grid(comparison_rows,country,second)
     st.subheader('Intervention-level differences in documented evidence')
     first=ev.checklist_prefill(data,country);other=ev.checklist_prefill(data,second)
     available=[(x,y) for x,y in zip(first,other) if x['source_urls'] or y['source_urls']]
@@ -500,7 +368,7 @@ def _pairwise(data:dict,country:str):
             _display_grounded_result(st.session_state['rag_pair_answer_'+pairkey],hits,pairkey)
     st.caption('Adaptation of practices to a different country requires national legal, financial, institutional and operational review.')
     pairrows=[]
-    for item in rows:
+    for item in comparison_rows:
         pairrows.append({'Domain':item['domain'],country+' institution':item[country]['responsible_institution'],
                          country+' function':item[country]['functional_responsibility'],
                          country+' source':item[country]['source_url'],
@@ -637,167 +505,8 @@ def _checklist(data:dict,country:str):
     _update_check(country,ev.country_context(data,country),'recent changes affecting the prefilled checklist','checklist_'+country)
 
 
-TOOLKIT_INTRO_HTML = """<style>
-/* Lab-inspired editorial architecture. All elements are owned by the Toolkit;
-   no third-party logos, images, branding assets or code are reproduced. */
-.st-key-road_safety_toolkit :is(.rs-toolkit-topbar,.rs-toolkit-hero,.rs-toolkit-guide),
-.st-key-road_safety_toolkit :is(.rs-toolkit-topbar,.rs-toolkit-hero,.rs-toolkit-guide) *{box-sizing:border-box;}
-.st-key-road_safety_toolkit :is(.rs-toolkit-topbar,.rs-toolkit-hero,.rs-toolkit-guide){
-  font-family:Arial,'Segoe UI',sans-serif!important;}
-.st-key-road_safety_toolkit .rs-toolkit-topbar,
-.st-key-road_safety_toolkit .rs-toolkit-hero{margin-left:-24px!important;margin-right:-24px!important;}
-.st-key-road_safety_toolkit .rs-toolkit-topbar{
-  height:70px!important;min-height:70px!important;max-height:70px!important;
-  background:#fff!important;border-bottom:1px solid #dce7e9!important;overflow:hidden!important;}
-.st-key-road_safety_toolkit .rs-toolkit-tricolor{height:4px;background:linear-gradient(90deg,#0797a1 0 72%,#e3b24b 72% 79%,#143c58 79%);}
-.st-key-road_safety_toolkit .rs-toolkit-topbar-inner{
-  max-width:1580px;margin:0 auto;height:66px;padding:0 32px;
-  display:flex;align-items:center;justify-content:space-between;gap:18px;}
-.st-key-road_safety_toolkit .rs-toolkit-brand{display:flex;align-items:center;gap:11px;
-  color:#10384c!important;-webkit-text-fill-color:#10384c!important;
-  font:800 13px/1.2 Arial,'Segoe UI',sans-serif!important;letter-spacing:.085em;text-transform:uppercase;}
-.st-key-road_safety_toolkit .rs-toolkit-brand-mark{position:relative;flex:0 0 30px;
-  width:30px;height:30px;border-radius:8px;background:#e2f4f2;border:1px solid #addbd9;}
-.st-key-road_safety_toolkit .rs-toolkit-brand-mark:before{content:"";position:absolute;
-  width:7px;height:19px;background:#0a8191;border-radius:5px;left:11px;top:5px;transform:rotate(24deg);}
-.st-key-road_safety_toolkit .rs-toolkit-brand-mark:after{content:"";position:absolute;
-  border-left:2px dashed white;height:11px;left:15px;top:9px;transform:rotate(24deg);}
-.st-key-road_safety_toolkit .rs-toolkit-brand-sub{color:#718894!important;-webkit-text-fill-color:#718894!important;
-  text-transform:none;letter-spacing:0;font-size:12px;font-weight:500;margin-left:3px;}
-.st-key-road_safety_toolkit .rs-toolkit-topbar-note{color:#526c7b!important;-webkit-text-fill-color:#526c7b!important;
-  font-size:12px;font-weight:600;}
-.st-key-road_safety_toolkit .rs-toolkit-hero{
-  position:relative;isolation:isolate;overflow:hidden;
-  height:320px!important;min-height:320px!important;max-height:320px!important;
-  color:#fff!important;background:linear-gradient(115deg,#0e304b 0%,#125173 72%,#087880 150%)!important;}
-.st-key-road_safety_toolkit .rs-toolkit-hero:before{content:"";position:absolute;pointer-events:none;
-  right:-115px;top:-240px;width:660px;height:660px;border-radius:50%;
-  border:1px solid rgba(225,248,248,.16);
-  box-shadow:0 0 0 76px rgba(225,248,248,.025),0 0 0 146px rgba(225,248,248,.02),0 0 0 225px rgba(225,248,248,.018);}
-.st-key-road_safety_toolkit .rs-toolkit-hero-inner{position:relative;z-index:1;
-  max-width:1580px;margin:0 auto;padding:39px 32px 24px;
-  height:100%;display:grid;grid-template-columns:minmax(0,1.45fr) minmax(285px,.7fr);align-items:center;gap:52px;}
-.st-key-road_safety_toolkit .rs-toolkit-hero-kicker{color:#9be6e6!important;-webkit-text-fill-color:#9be6e6!important;
-  font-size:12px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;margin:0 0 11px;}
-.st-key-road_safety_toolkit .rs-toolkit-hero h1{
-  color:#fff!important;-webkit-text-fill-color:#fff!important;max-width:950px;
-  font:bold clamp(29px,3.1vw,43px)/1.15 Arial,'Segoe UI',sans-serif!important;
-  letter-spacing:-.038em!important;margin:0 0 15px!important;}
-.st-key-road_safety_toolkit .rs-toolkit-hero h1 em{color:#92e6e2!important;
-  -webkit-text-fill-color:#92e6e2!important;font-style:normal!important;}
-.st-key-road_safety_toolkit .rs-toolkit-hero p{color:#e5f1f4!important;
-  -webkit-text-fill-color:#e5f1f4!important;font-size:15px!important;
-  line-height:1.6!important;max-width:750px;margin:0!important;}
-.st-key-road_safety_toolkit .rs-toolkit-hero-tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:19px;}
-.st-key-road_safety_toolkit .rs-toolkit-hero-tags span{color:#e9faf9!important;
-  -webkit-text-fill-color:#e9faf9!important;background:rgba(255,255,255,.09);
-  border:1px solid rgba(204,237,239,.37);border-radius:20px;padding:5px 11px;
-  font-size:11px;font-weight:650;}
-/* Self-contained CSS graphic instead of copying Lab website photography. */
-.st-key-road_safety_toolkit .rs-toolkit-path{border:1px solid rgba(235,253,252,.33);
-  border-radius:18px;background:rgba(255,255,255,.08);padding:19px 21px;
-  backdrop-filter:blur(6px);max-width:350px;justify-self:end;width:100%;}
-.st-key-road_safety_toolkit .rs-toolkit-path-label{color:#bbefee!important;
-  -webkit-text-fill-color:#bbefee!important;font-size:10px;font-weight:800;
-  letter-spacing:.15em;margin:0 0 12px!important;text-transform:uppercase;}
-.st-key-road_safety_toolkit .rs-toolkit-path-step{display:flex;align-items:center;gap:12px;
-  padding:10px 0;border-bottom:1px solid rgba(255,255,255,.15);}
-.st-key-road_safety_toolkit .rs-toolkit-path-step:last-child{border-bottom:0;padding-bottom:0;}
-.st-key-road_safety_toolkit .rs-toolkit-path-num{border:1px solid rgba(255,255,255,.32);
-  border-radius:50%;width:28px;height:28px;flex:0 0 28px;display:grid;place-items:center;
-  font-size:11px;font-weight:750;color:#def9f5!important;-webkit-text-fill-color:#def9f5!important;}
-.st-key-road_safety_toolkit .rs-toolkit-path-step strong{color:#fff!important;
-  -webkit-text-fill-color:#fff!important;font-size:13px;font-weight:750;}
-.st-key-road_safety_toolkit .rs-toolkit-guide{max-width:1580px;margin:0 auto 15px;padding:34px 0 12px;}
-.st-key-road_safety_toolkit .rs-toolkit-eyebrow{color:#087582!important;-webkit-text-fill-color:#087582!important;
-  font-size:11px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;margin:0 0 8px;}
-.st-key-road_safety_toolkit .rs-toolkit-guide h2{color:#16364c!important;-webkit-text-fill-color:#16364c!important;
-  font-size:clamp(23px,2.4vw,29px)!important;letter-spacing:-.035em!important;
-  line-height:1.2!important;margin:0 0 8px!important;font-weight:800!important;}
-.st-key-road_safety_toolkit .rs-toolkit-guide-lead{color:#5f7482!important;
-  -webkit-text-fill-color:#5f7482!important;font-size:14px!important;margin:0 0 19px!important;}
-.st-key-road_safety_toolkit .rs-toolkit-option-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;}
-.st-key-road_safety_toolkit .rs-toolkit-option{position:relative;display:flex;flex-direction:column;
-  min-height:183px;padding:20px 20px 18px;background:#fff!important;border:1px solid #dae6e8!important;
-  border-radius:13px;box-shadow:0 8px 24px rgba(12,54,74,.035);}
-.st-key-road_safety_toolkit .rs-toolkit-option:before{content:"";position:absolute;
-  width:38px;height:3px;top:-1px;left:19px;background:#078c98;border-radius:5px;}
-.st-key-road_safety_toolkit .rs-toolkit-option-index{display:block;margin-bottom:19px;
-  color:#087989!important;-webkit-text-fill-color:#087989!important;font-size:12px;
-  letter-spacing:.10em;font-weight:800;}
-.st-key-road_safety_toolkit .rs-toolkit-option h3{color:#17384b!important;-webkit-text-fill-color:#17384b!important;
-  font-size:16px!important;font-weight:800!important;letter-spacing:-.015em!important;
-  line-height:1.25!important;margin:0 0 10px!important;}
-.st-key-road_safety_toolkit .rs-toolkit-option p{color:#536e7e!important;-webkit-text-fill-color:#536e7e!important;
-  font-size:13px!important;line-height:1.52!important;margin:0!important;}
-.st-key-road_safety_toolkit .rs-toolkit-method{margin:17px 0 0;padding:15px 18px;
-  border:1px solid #cde4e5;border-left:4px solid #078b97;
-  border-radius:10px;background:#edf7f7!important;color:#315666!important;
-  -webkit-text-fill-color:#315666!important;font-size:13px!important;line-height:1.55!important;}
-.st-key-road_safety_toolkit .rs-toolkit-method strong{color:#0e5161!important;
-  -webkit-text-fill-color:#0e5161!important;}
-.st-key-road_safety_toolkit .rs-workspace-head{margin:18px 0 8px;border-top:1px solid #dbe7e8;
-  padding:19px 0 3px;}
-.st-key-road_safety_toolkit .rs-workspace-head strong{font-size:20px;color:#17374c!important;
-  -webkit-text-fill-color:#17374c!important;}
-.st-key-road_safety_toolkit .rs-workspace-head p{color:#667f8b!important;
-  -webkit-text-fill-color:#667f8b!important;font-size:13px;margin:5px 0 0!important;}
-@media(max-width:1100px){
- .st-key-road_safety_toolkit .rs-toolkit-hero-inner{gap:28px;grid-template-columns:minmax(0,1.4fr) minmax(240px,.7fr);}
- .st-key-road_safety_toolkit .rs-toolkit-option-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
- .st-key-road_safety_toolkit .rs-toolkit-option{min-height:145px;}
-}
-@media(max-width:740px){
- .st-key-road_safety_toolkit .rs-toolkit-topbar,.st-key-road_safety_toolkit .rs-toolkit-hero{
-   margin-left:-12px!important;margin-right:-12px!important;}
- .st-key-road_safety_toolkit .rs-toolkit-topbar-inner{padding:0 16px;}
- .st-key-road_safety_toolkit .rs-toolkit-brand-sub,.st-key-road_safety_toolkit .rs-toolkit-topbar-note{display:none;}
- .st-key-road_safety_toolkit .rs-toolkit-hero{height:auto!important;min-height:320px!important;max-height:none!important;}
- .st-key-road_safety_toolkit .rs-toolkit-hero-inner{display:block;padding:35px 19px 35px;}
- .st-key-road_safety_toolkit .rs-toolkit-hero h1{font-size:32px!important;}
- .st-key-road_safety_toolkit .rs-toolkit-hero p{font-size:14px!important;}
- .st-key-road_safety_toolkit .rs-toolkit-path{display:none;}
- .st-key-road_safety_toolkit .rs-toolkit-guide{padding:26px 0 6px;}
- .st-key-road_safety_toolkit .rs-toolkit-option-grid{grid-template-columns:1fr;}
- .st-key-road_safety_toolkit .rs-toolkit-option{min-height:0;padding:18px;}
- .st-key-road_safety_toolkit .rs-toolkit-option-index{margin-bottom:11px;}
-}
-</style>
-<div class="rs-toolkit-topbar" role="banner">
- <div class="rs-toolkit-tricolor"></div>
- <div class="rs-toolkit-topbar-inner">
-  <div class="rs-toolkit-brand"><span class="rs-toolkit-brand-mark" aria-hidden="true"></span>Road Safety Toolkit <span class="rs-toolkit-brand-sub">/ Institutional workspace</span></div>
-  <span class="rs-toolkit-topbar-note">Research · Comparison · Action</span>
- </div>
-</div>
-<section class="rs-toolkit-hero" aria-labelledby="rs-toolkit-heading">
- <div class="rs-toolkit-hero-inner">
-  <div class="rs-toolkit-hero-copy">
-   <div class="rs-toolkit-hero-kicker">KNOWLEDGE TO ACTION</div>
-   <h1 id="rs-toolkit-heading">Road Safety <em>Institutional Toolkit</em></h1>
-   <p>Explore evidence on road safety coordination, learn from other countries, and prepare a practical institutional improvement checklist.</p>
-   <div class="rs-toolkit-hero-tags"><span>Country evidence</span><span>International comparison</span><span>Guided assessment</span></div>
-  </div>
-  <aside class="rs-toolkit-path" aria-label="Toolkit workflow">
-   <div class="rs-toolkit-path-label">YOUR PATH THROUGH THE TOOLKIT</div>
-   <div class="rs-toolkit-path-step"><span class="rs-toolkit-path-num">01</span><strong>Understand the evidence</strong></div>
-   <div class="rs-toolkit-path-step"><span class="rs-toolkit-path-num">02</span><strong>Compare arrangements</strong></div>
-   <div class="rs-toolkit-path-step"><span class="rs-toolkit-path-num">03</span><strong>Plan next steps</strong></div>
-  </aside>
- </div>
-</section>
-<section class="rs-toolkit-guide" aria-labelledby="rs-toolkit-guide-heading">
- <p class="rs-toolkit-eyebrow">OUR TOOLS</p>
- <h2 id="rs-toolkit-guide-heading">Choose how you want to work</h2>
- <p class="rs-toolkit-guide-lead">Four connected services, each grounded in the research available for your country.</p>
- <div class="rs-toolkit-option-grid">
-  <article class="rs-toolkit-option"><span class="rs-toolkit-option-index">01 / FINDINGS</span><h3>Explore country findings</h3><p>See identified coordinating bodies, institutional roles and original sources. Ask targeted questions of the evidence index.</p></article>
-  <article class="rs-toolkit-option"><span class="rs-toolkit-option-index">02 / BENCHMARK</span><h3>Benchmark internationally</h3><p>Compare how well countries are documented, not rankings of road safety performance.</p></article>
-  <article class="rs-toolkit-option"><span class="rs-toolkit-option-index">03 / COMPARE</span><h3>Compare with another country</h3><p>Investigate two countries side by side across 17 institutional domains, with source-linked differences.</p></article>
-  <article class="rs-toolkit-option"><span class="rs-toolkit-option-index">04 / ACT</span><h3>Generate my institutional checklist</h3><p>Share what you know, then receive a prefilled 72-intervention checklist and targeted verification guidance.</p></article>
- </div>
- <p class="rs-toolkit-method"><strong>How the intelligence works.</strong> The toolkit retrieves country-specific, source-linked evidence and maps relevant records to a 17-domain, 72-intervention framework. With AI access configured, you can request citation-checked analysis and short, on-demand checks for newer official information. Evidence gaps and user responses remain unverified until reviewed.</p>
-</section>"""
+TOOLKIT_INTRO_HTML = '<style id="rs-lab-toolkit-v3">\n/* Road Safety Lab inspired information architecture with original artwork and assets. */\n.st-key-road_safety_toolkit{font-family:Inter,\'Segoe UI\',Arial,sans-serif!important;color:#142d42!important}\n.st-key-road_safety_toolkit :is(.rst-mast,.rst-hero,.rst-areas,.rst-workflow,.rst-how),\n.st-key-road_safety_toolkit :is(.rst-mast,.rst-hero,.rst-areas,.rst-workflow,.rst-how) *{box-sizing:border-box}\n.st-key-road_safety_toolkit :is(.rst-mast,.rst-hero){margin-left:-24px!important;margin-right:-24px!important}\n.st-key-road_safety_toolkit .rst-mast{background:#fff!important;height:70px;border-bottom:1px solid #d9e6ea!important;display:flex;align-items:center;justify-content:space-between;padding:0 max(28px,calc((100% - 1440px)/2));gap:15px}\n.st-key-road_safety_toolkit .rst-brand{display:flex;align-items:center;gap:12px;font-size:14px;font-weight:850;letter-spacing:.065em;color:#11364b!important;-webkit-text-fill-color:#11364b!important;text-transform:uppercase}\n.st-key-road_safety_toolkit .rst-brand-mark{height:39px;width:39px;display:grid;place-items:center;border-radius:12px;background:#def3f2!important;color:#096e76!important;border:1px solid #b1d9d7!important;flex-shrink:0}\n.st-key-road_safety_toolkit .rst-brand-mark svg{height:28px;width:28px;stroke:#087e84!important}\n.st-key-road_safety_toolkit .rst-mast-nav{display:flex;gap:20px;color:#3c6070!important;-webkit-text-fill-color:#3c6070!important;font-size:12px;font-weight:750;letter-spacing:.035em}\n.st-key-road_safety_toolkit .rst-mast-nav span{white-space:nowrap}\n.st-key-road_safety_toolkit .rst-hero{height:405px!important;min-height:405px!important;max-height:405px!important;overflow:hidden;position:relative;isolation:isolate;background:linear-gradient(110deg,#08283a 0%,#0b5268 62%,#0c8a8d 145%)!important}\n.st-key-road_safety_toolkit .rst-hero:before{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(circle at 85% 18%,rgba(91,216,211,.17),transparent 39%)}\n.st-key-road_safety_toolkit .rst-hero-inner{height:100%;max-width:1490px;margin:auto;display:grid;grid-template-columns:minmax(0,1fr) minmax(370px,.83fr);gap:35px;align-items:center;padding:32px 36px;position:relative;z-index:1}\n.st-key-road_safety_toolkit .rst-hero-copy{max-width:815px;position:relative;z-index:2}\n.st-key-road_safety_toolkit .rst-overline{display:inline-flex;align-items:center;gap:9px;color:#a7e6df!important;-webkit-text-fill-color:#a7e6df!important;letter-spacing:.15em;font-size:12px;font-weight:800;text-transform:uppercase;margin-bottom:19px}\n.st-key-road_safety_toolkit .rst-overline:before{content:"";display:inline-block;width:34px;height:3px;background:#e7bd54;border-radius:3px}\n.st-key-road_safety_toolkit .rst-hero h1{font-family:Inter,\'Segoe UI\',Arial,sans-serif!important;color:#fff!important;-webkit-text-fill-color:#fff!important;font-size:clamp(36px,3.4vw,57px)!important;line-height:1.075!important;letter-spacing:-.045em!important;font-weight:850!important;margin:0 0 17px!important;max-width:770px!important}\n.st-key-road_safety_toolkit .rst-hero h1 em{font-style:normal!important;color:#8ce0d4!important;-webkit-text-fill-color:#8ce0d4!important}\n.st-key-road_safety_toolkit .rst-hero p{font-size:16px!important;color:#ecf7f8!important;-webkit-text-fill-color:#ecf7f8!important;line-height:1.65!important;max-width:670px!important;margin:0!important}\n.st-key-road_safety_toolkit .rst-hero-tags{display:flex;gap:10px;flex-wrap:wrap;margin-top:25px}\n.st-key-road_safety_toolkit .rst-hero-tags span{font-size:11px;color:#e7f6f5!important;-webkit-text-fill-color:#e7f6f5!important;border:1px solid rgba(224,251,247,.38);border-radius:22px;padding:7px 12px;letter-spacing:.03em}\n.st-key-road_safety_toolkit .rst-hero-art{width:100%;height:355px;display:flex;align-items:center;justify-content:center;opacity:.98;pointer-events:none}\n.st-key-road_safety_toolkit .rst-hero-art svg{width:100%;max-height:355px;filter:drop-shadow(0 22px 25px rgba(0,24,37,.18))}\n.st-key-road_safety_toolkit .rst-main{max-width:1450px;padding:34px 8px 6px;margin:0 auto}\n.st-key-road_safety_toolkit .rst-eyebrow{font-size:11px;color:#07817d!important;-webkit-text-fill-color:#07817d!important;text-transform:uppercase;letter-spacing:.135em;font-weight:850;margin:0 0 11px}\n.st-key-road_safety_toolkit .rst-main h2{font-size:clamp(24px,2.5vw,32px)!important;font-weight:850!important;color:#153349!important;-webkit-text-fill-color:#153349!important;letter-spacing:-.03em!important;line-height:1.16!important;margin:0 0 12px!important}\n.st-key-road_safety_toolkit .rst-deck{font-size:14px;color:#566f7e!important;-webkit-text-fill-color:#566f7e!important;line-height:1.62!important;margin:0 0 23px!important;max-width:980px}\n.st-key-road_safety_toolkit .rst-areas{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:17px;margin:0 0 25px}\n.st-key-road_safety_toolkit .rst-area{border:1px solid #d7e5e8!important;border-radius:14px;overflow:hidden;background:#fff!important;box-shadow:0 8px 24px rgba(12,52,67,.055);min-height:299px;display:flex;flex-direction:column;transition:transform .15s,border-color .15s}\n.st-key-road_safety_toolkit .rst-area:hover{transform:translateY(-3px);border-color:#88c8c6!important}\n.st-key-road_safety_toolkit .rst-area-art{height:113px;display:grid;place-items:center;position:relative;overflow:hidden}\n.st-key-road_safety_toolkit .rst-area-art svg{width:120px;height:95px;stroke-width:3;stroke-linecap:round;stroke-linejoin:round;fill:none;position:relative;z-index:1}\n.st-key-road_safety_toolkit .rst-area-art:before{content:"";position:absolute;width:210px;height:210px;border-radius:50%;right:-95px;top:-123px;border:28px solid rgba(255,255,255,.13)}\n.st-key-road_safety_toolkit .rst-a1 .rst-area-art{background:linear-gradient(130deg,#0e6070,#178b93)}\n.st-key-road_safety_toolkit .rst-a2 .rst-area-art{background:linear-gradient(130deg,#163f60,#32708d)}\n.st-key-road_safety_toolkit .rst-a3 .rst-area-art{background:linear-gradient(130deg,#16545b,#329b91)}\n.st-key-road_safety_toolkit .rst-a4 .rst-area-art{background:linear-gradient(130deg,#0a414c,#226d76)}\n.st-key-road_safety_toolkit .rst-area-body{padding:19px 19px 20px;display:flex;flex-direction:column;flex:1}\n.st-key-road_safety_toolkit .rst-area-num{color:#087982!important;-webkit-text-fill-color:#087982!important;letter-spacing:.11em;font-weight:850;font-size:10px;margin:0 0 7px}\n.st-key-road_safety_toolkit .rst-area h3{font-size:17px!important;color:#16354b!important;-webkit-text-fill-color:#16354b!important;font-weight:830!important;line-height:1.3!important;margin:0 0 9px!important}\n.st-key-road_safety_toolkit .rst-area p{font-size:12.5px;color:#526e7b!important;-webkit-text-fill-color:#526e7b!important;line-height:1.58!important;margin:0 0 13px!important;flex:1}\n.st-key-road_safety_toolkit .rst-area-end{font-size:11px;color:#087987!important;-webkit-text-fill-color:#087987!important;font-weight:800;border-top:1px solid #e8eff1;padding-top:11px}\n.st-key-road_safety_toolkit .rst-how{display:grid;grid-template-columns:1.2fr 1fr;gap:25px;align-items:center;padding:18px 22px;margin-bottom:15px;background:#eaf6f5!important;border:1px solid #c6e3e0!important;border-left:4px solid #038a89!important;border-radius:12px}\n.st-key-road_safety_toolkit .rst-how h3{font-size:15px!important;color:#124b54!important;-webkit-text-fill-color:#124b54!important;margin:0 0 6px!important;font-weight:820!important}\n.st-key-road_safety_toolkit .rst-how p{font-size:12.5px!important;color:#345d63!important;-webkit-text-fill-color:#345d63!important;margin:0!important;line-height:1.55!important}\n.st-key-road_safety_toolkit .rst-how-steps{display:flex;justify-content:space-between;gap:8px;align-items:center}\n.st-key-road_safety_toolkit .rst-how-step{font-size:11px;font-weight:800;color:#14636b!important;-webkit-text-fill-color:#14636b!important;background:#fff!important;border:1px solid #d1e7e5;border-radius:8px;padding:12px 9px;text-align:center;flex:1}\n.st-key-road_safety_toolkit .rst-how-arrow{font-weight:900;color:#13818c!important;-webkit-text-fill-color:#13818c!important}\n.st-key-road_safety_toolkit .rst-workflow{padding:18px 0 9px;border-top:1px solid #dbe8e8;margin-top:7px}\n.st-key-road_safety_toolkit .rst-workflow h2{font-size:23px!important;margin:0 0 6px!important}\n.st-key-road_safety_toolkit .rst-workflow p{font-size:13px!important;color:#587381!important;-webkit-text-fill-color:#587381!important;margin:0!important}\n.st-key-road_safety_toolkit .rst-mode-brief{max-width:1450px;padding:16px 19px 15px;background:#fff!important;border:1px solid #d6e6e6;border-left:4px solid #078d91;border-radius:10px;margin:12px 0 20px}\n.st-key-road_safety_toolkit .rst-mode-brief h3{color:#1a4455!important;-webkit-text-fill-color:#1a4455!important;margin:0 0 5px!important;font-size:17px!important}\n.st-key-road_safety_toolkit .rst-mode-brief p{color:#526c78!important;-webkit-text-fill-color:#526c78!important;font-size:13px!important;line-height:1.58!important;margin:0!important}\n@media(max-width:1160px){.st-key-road_safety_toolkit .rst-hero-inner{grid-template-columns:minmax(0,1fr) minmax(260px,.6fr)}.st-key-road_safety_toolkit .rst-areas{grid-template-columns:repeat(2,minmax(0,1fr))}.st-key-road_safety_toolkit .rst-area{min-height:270px}}\n@media(max-width:790px){.st-key-road_safety_toolkit :is(.rst-mast,.rst-hero){margin-left:-12px!important;margin-right:-12px!important}.st-key-road_safety_toolkit .rst-mast{padding:0 15px!important}.st-key-road_safety_toolkit .rst-mast-nav{display:none}.st-key-road_safety_toolkit .rst-hero{height:auto!important;min-height:355px!important;max-height:none!important}.st-key-road_safety_toolkit .rst-hero-inner{display:block!important;padding:38px 22px 37px!important}.st-key-road_safety_toolkit .rst-hero h1{font-size:clamp(30px,8vw,43px)!important}.st-key-road_safety_toolkit .rst-hero p{font-size:14px!important}.st-key-road_safety_toolkit .rst-hero-art{display:none}.st-key-road_safety_toolkit .rst-main{padding:27px 0 5px}}\n@media(max-width:640px){.st-key-road_safety_toolkit .rst-areas{grid-template-columns:1fr!important;gap:12px}.st-key-road_safety_toolkit .rst-area{min-height:0}.st-key-road_safety_toolkit .rst-area-art{height:82px}.st-key-road_safety_toolkit .rst-area-art svg{height:72px}.st-key-road_safety_toolkit .rst-area-body{padding:17px}.st-key-road_safety_toolkit .rst-how{display:block}.st-key-road_safety_toolkit .rst-how-steps{margin-top:14px}.st-key-road_safety_toolkit .rst-hero-tags{gap:5px}}\n</style>\n<div class="rst-mast" role="banner">\n  <div class="rst-brand"><span class="rst-brand-mark" aria-hidden="true">\n    <svg viewBox="0 0 36 36" aria-hidden="true"><path d="M10 30 C8 19 21 16 24 6" stroke="currentColor" fill="none" stroke-width="7" stroke-linecap="round"/><path d="M13 27l2-4m3-4 2-4m2-4 2-4" stroke="white" stroke-width="1.9" stroke-linecap="round"/></svg>\n  </span>Road Safety Toolkit</div>\n  <div class="rst-mast-nav"><span>COUNTRY EVIDENCE</span><span>INTERNATIONAL LEARNING</span><span>INSTITUTIONAL ACTION</span></div>\n</div>\n<section class="rst-hero" aria-labelledby="rst-title">\n  <div class="rst-hero-inner">\n    <div class="rst-hero-copy">\n      <span class="rst-overline">Global knowledge and action workspace</span>\n      <h1 id="rst-title">Road Safety<br><em>Institutional Toolkit</em></h1>\n      <p>Bring country research, international experience, and government knowledge together to strengthen how road safety institutions coordinate and deliver action.</p>\n      <div class="rst-hero-tags"><span>Evidence-led</span><span>Cross-country learning</span><span>Action-oriented</span></div>\n    </div>\n    <div class="rst-hero-art" aria-hidden="true">\n      <svg viewBox="0 0 570 385" xmlns="http://www.w3.org/2000/svg" role="img">\n        <defs><linearGradient id="road" x1="0" x2="1"><stop stop-color="#77D8C9"/><stop offset="1" stop-color="#D5EBC9"/></linearGradient><linearGradient id="card" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#276E80"/><stop offset="1" stop-color="#103A54"/></linearGradient></defs>\n        <circle cx="350" cy="185" r="158" fill="#d5ffff" opacity=".075"/>\n        <circle cx="350" cy="185" r="120" fill="none" stroke="#bdeee7" opacity=".18" stroke-width="1.4" stroke-dasharray="5 9"/>\n        <path d="M96 362C119 270 196 281 238 207S324 117 432 33" fill="none" stroke="#194A59" stroke-width="80" stroke-linecap="round"/>\n        <path d="M96 362C119 270 196 281 238 207S324 117 432 33" fill="none" stroke="url(#road)" stroke-width="3" stroke-dasharray="17 15" stroke-linecap="round"/>\n        <path d="M112 360C131 302 210 306 258 229S342 130 432 47" fill="none" stroke="#98EAE2" opacity=".28" stroke-width="1.5"/>\n        <path d="M73 343C100 263 177 248 219 187S304 87 406 17" fill="none" stroke="#98EAE2" opacity=".28" stroke-width="1.5"/>\n        <g fill="#0E6574" stroke="#C5F8EE" stroke-width="3"><circle cx="116" cy="319" r="13"/><circle cx="244" cy="204" r="13"/><circle cx="349" cy="113" r="13"/><circle cx="419" cy="40" r="13"/></g>\n        <g><rect x="310" y="167" width="213" height="135" rx="12" fill="url(#card)" stroke="#8fcfce" opacity=".97"/><rect x="326" y="186" width="66" height="7" rx="3" fill="#91D8CF"/><rect x="326" y="205" width="115" height="6" rx="3" fill="#DAF7F4" opacity=".7"/><rect x="326" y="245" width="19" height="35" rx="3" fill="#A5E7D7"/><rect x="354" y="228" width="19" height="52" rx="3" fill="#78CBCD"/><rect x="382" y="216" width="19" height="64" rx="3" fill="#E6C26F"/><rect x="410" y="199" width="19" height="81" rx="3" fill="#8ED8D8"/><path d="M450 259h52" stroke="#B9E9E2" stroke-width="3" stroke-linecap="round"/><path d="M450 274h40" stroke="#B9E9E2" opacity=".6" stroke-width="3" stroke-linecap="round"/></g>\n        <g transform="translate(120 48)"><rect width="126" height="62" rx="9" fill="#EAF8F4"/><path d="M15 18h38M15 29h61" stroke="#0C6776" stroke-width="6" stroke-linecap="round"/><path d="M16 46l13-6 13 4 13-11 13 2" fill="none" stroke="#169C9C" stroke-width="3"/><circle cx="99" cy="35" r="15" fill="#0B6575"/><path d="M94 35l4 4 8-9" stroke="#fff" stroke-width="3" fill="none"/></g>\n        <g fill="#EBD78A"><circle cx="172" cy="220" r="4"/><circle cx="292" cy="78" r="4"/><circle cx="479" cy="89" r="4"/></g>\n      </svg>\n    </div>\n  </div>\n</section>\n<div class="rst-main">\n  <p class="rst-eyebrow">What would you like to achieve?</p>\n  <h2>From knowledge to country-specific action</h2>\n  <p class="rst-deck">Choose one of four services. You can start with existing research, examine international evidence, compare institutions, or create an editable improvement checklist informed by your own knowledge.</p>\n  <section class="rst-areas" aria-label="Four institutional toolkit services">\n    <article class="rst-area rst-a1"><div class="rst-area-art" aria-hidden="true"><svg viewBox="0 0 120 96" stroke="#EBFFFA"><rect x="20" y="13" width="80" height="70" rx="7"/><path d="M35 30h50M35 42h25M35 58h30"/><circle cx="81" cy="62" r="10"/><path d="M88 69l12 12"/></svg></div><div class="rst-area-body"><span class="rst-area-num">01 / KNOWLEDGE</span><h3>Explore country findings</h3><p>Review identified institutions, mandates, responsibilities, strategies and source links for your selected country.</p><span class="rst-area-end">Output · Country evidence report</span></div></article>\n    <article class="rst-area rst-a2"><div class="rst-area-art" aria-hidden="true"><svg viewBox="0 0 120 96" stroke="#EBFFFA"><path d="M20 80h85M30 70V40M48 70V52M66 70V29M84 70V17"/><path d="M17 28l20-10 20 7 23-9 15 4"/><circle cx="97" cy="20" r="7"/></svg></div><div class="rst-area-body"><span class="rst-area-num">02 / BENCHMARKING</span><h3>Benchmark internationally</h3><p>See how published evidence coverage differs across countries, with clear limits on what can be concluded.</p><span class="rst-area-end">Output · Benchmarking brief</span></div></article>\n    <article class="rst-area rst-a3"><div class="rst-area-art" aria-hidden="true"><svg viewBox="0 0 120 96" stroke="#EBFFFA"><rect x="10" y="21" width="43" height="51" rx="6"/><rect x="67" y="21" width="43" height="51" rx="6"/><path d="M24 39h16M24 51h16M80 39h16M80 51h16M51 44h18"/><path d="M62 37l7 7-7 7"/></svg></div><div class="rst-area-body"><span class="rst-area-num">03 / PEER LEARNING</span><h3>Compare two countries</h3><p>Investigate institutional arrangements side by side across 17 domains, with clickable evidence tables.</p><span class="rst-area-end">Output · Comparative dossier</span></div></article>\n    <article class="rst-area rst-a4"><div class="rst-area-art" aria-hidden="true"><svg viewBox="0 0 120 96" stroke="#EBFFFA"><rect x="28" y="15" width="66" height="70" rx="7"/><path d="M43 29l4 4 7-9M60 30h21M43 48l4 4 7-9M60 49h21M44 68h37"/></svg></div><div class="rst-area-body"><span class="rst-area-num">04 / INSTITUTIONAL ACTION</span><h3>Generate a tailored checklist</h3><p>Answer a few optional questions and receive a prefilled 72-intervention assessment with next steps.</p><span class="rst-area-end">Output · Editable action plan</span></div></article>\n  </section>\n  <section class="rst-how" aria-label="How the evidence engine works">\n    <div><h3>How the Toolkit works</h3><p>It retrieves source-linked country records first, distinguishes verified evidence from unknowns, and can check recent official changes on request. AI summaries require an API key and must cite retrieved sources. Your answers never overwrite the reviewed research automatically.</p></div>\n    <div class="rst-how-steps" aria-hidden="true"><span class="rst-how-step">RETRIEVE<br>EVIDENCE</span><span class="rst-how-arrow">→</span><span class="rst-how-step">VERIFY<br>CHANGES</span><span class="rst-how-arrow">→</span><span class="rst-how-step">PLAN<br>ACTION</span></div>\n  </section>\n  <section class="rst-workflow"><p class="rst-eyebrow">Your workspace</p><h2>Begin with your country</h2><p>Select a country, choose your task, and use the evidence and guidance below.</p></section>\n</div>\n'
+
 
 def _render_toolkit_intro() -> None:
     """Render the fixed-height, Atlas-style Toolkit header and concise feature guide."""
@@ -830,7 +539,18 @@ def render():
             '<strong>Currently viewing:</strong> '+escape(country)+' &nbsp; | &nbsp; '+escape(mode)+'</div>',
             unsafe_allow_html=True,
         )
-        st.divider()
+        info = {
+            'Explore country findings':('Understand the evidence',
+                'Review identified coordinating bodies, institutional roles and original sources. Select a domain in the 17-card grid to inspect its records. You can then retrieve source-linked research excerpts and export a country brief.'),
+            'Benchmark internationally':('Benchmark documentation coverage',
+                'Compare the coverage of reviewed institutional evidence across the country directory. This is not a ranking of road safety performance. Download an executive brief or an Excel table.'),
+            'Compare with another country':('Learn from another country',
+                'Select one peer country to see all 17 domains in a four-column grid. Clicking a domain shows a real side-by-side source table, followed by intervention-level evidence and an optional analytical report.'),
+            'Generate my institutional checklist':('Create your country-specific action plan',
+                'First answer eight optional multiple-choice questions selected from areas where evidence is limited. The Toolkit then prefills 72 interventions from research plus your responses and proposes verification and improvement steps.'),
+        }
+        heading, description = info[mode]
+        st.markdown('<div class="rst-mode-brief"><h3>'+escape(heading)+'</h3><p>'+escape(description)+'</p></div>',unsafe_allow_html=True)
         if mode=='Explore country findings':_country_findings(data,country)
         elif mode=='Benchmark internationally':_benchmark(data,country)
         elif mode=='Compare with another country':_pairwise(data,country)

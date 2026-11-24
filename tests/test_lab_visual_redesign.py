@@ -38,14 +38,14 @@ def test_toolkit_editorial_header_layout_in_chromium(width,columns):
         page.on('pageerror',lambda e:errors.append(str(e)))
         page.set_content(toolkit_fixture())
         assert page.get_by_role('heading',name='Road Safety Institutional Toolkit').is_visible()
-        assert page.locator('.rs-toolkit-option').count()==4
-        count=page.locator('.rs-toolkit-option-grid').evaluate('el=>getComputedStyle(el).gridTemplateColumns.split(" ").length')
+        assert page.locator('.rst-area').count()==4
+        count=page.locator('.rst-areas').evaluate('el=>getComputedStyle(el).gridTemplateColumns.split(" ").length')
         assert count==columns
-        assert page.locator('.rs-toolkit-topbar').evaluate('el=>Math.round(el.getBoundingClientRect().height)')==70
+        assert page.locator('.rst-mast').evaluate('el=>Math.round(el.getBoundingClientRect().height)')==70
         if width>=740:
-            assert page.locator('.rs-toolkit-hero').evaluate('el=>Math.round(el.getBoundingClientRect().height)')==320
+            assert page.locator('.rst-hero').evaluate('el=>Math.round(el.getBoundingClientRect().height)')==405
         assert page.locator('body').evaluate('el=>el.scrollWidth')<=width+1
-        assert page.locator('.rs-toolkit-option').first.evaluate('el=>getComputedStyle(el).backgroundColor')=='rgb(255, 255, 255)'
+        assert page.locator('.rst-area').first.evaluate('el=>getComputedStyle(el).backgroundColor')=='rgb(255, 255, 255)'
         assert not errors
         if width==1440:
             (ROOT/'qa').mkdir(exist_ok=True)

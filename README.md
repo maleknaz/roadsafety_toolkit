@@ -1,3 +1,9 @@
+# Road Safety Toolkit
+
+## Current Lab-style UI release (November 24, 2026)
+
+The user interface now follows a Road Safety Lab-inspired knowledge-hub structure with original artwork, a shared white navigation, illustrated four-area sections, and consistent light-colour source tables. The **Institutional Toolkit** includes a genuine clickable **17-domain CSS grid** in both country findings and pairwise comparison. The prior pairwise export error caused by an undefined `rows` variable is fixed. See `LAB_STYLE_REBUILD_GUIDE.md` for deployment and QA instructions.
+
 # Global Road Safety Atlas: Data-connected Checklist MVP
 
 ## What changed
