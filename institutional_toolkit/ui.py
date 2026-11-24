@@ -632,8 +632,11 @@ def _render_toolkit_intro() -> None:
         meta='195 countries · 17 institutional domains · 72 defined interventions',
         legacy_mast='grs-fixed-banner',
     )
-    st.markdown(existing_styles + standard_header + '<div class="rst-main">' + after_main,
-                unsafe_allow_html=True)
+    # This content is trusted, repository-authored HTML (never user input).
+    # Do not pass it through st.markdown: the indented lines inside the shared
+    # masthead are parsed as a Markdown CODE BLOCK, displaying raw <div> tags.
+    # st.html uses Streamlit's HTML renderer and preserves the shared hero.
+    st.html(existing_styles + standard_header + '<div class="rst-main">' + after_main)
 
 
 def render():
