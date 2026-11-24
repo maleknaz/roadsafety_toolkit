@@ -189,7 +189,7 @@ def as_csv(rows: list[dict]) -> bytes:
 def word_rag(title: str, question: str, hits: list[dict], result: dict) -> bytes:
     """Reference-backed AI working draft; include retrieved source IDs and URLs."""
     doc = Document()
-    _header(doc, 'Road Safety Institutional Toolkit', title + ' | Controlled RAG evidence analysis')
+    _header(doc, 'Road Safety Institutional Toolkit', title + ' | Road Safety Intelligence Agent: cited evidence analysis')
     doc.add_heading('Research question', 1)
     doc.add_paragraph(question or 'Research question not specified')
     doc.add_heading('Interpretation status', 1)

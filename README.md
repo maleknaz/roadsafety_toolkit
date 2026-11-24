@@ -54,3 +54,8 @@ The former final "Checklists for your taskforce" tab has been updated to **Road 
 ## Visual design update (November 2026)
 
 The app includes a Lab-inspired evidence-to-action visual system. The shared Streamlit navigation CSS is in `portal_theme.py`; the six embedded HTML pages retain standalone styling. The institutional toolkit uses the same portal theme, preserving the original research/RAG features and responsive four-column domain comparison. See `LAB_UI_UPDATE_GUIDE.md` for file changes and test results.
+
+
+## November 2026 header-rendering correction
+
+The Toolkit masthead now uses Streamlit `st.html()` instead of `st.markdown()` to prevent indented header tags from displaying as raw code. See `HEADER_RENDER_FIX.md`.

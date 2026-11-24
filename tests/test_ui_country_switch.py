@@ -31,6 +31,11 @@ class FakeStreamlit:
     def markdown(self, content, **kwargs):
         self.markdowns.append(content)
 
+    def html(self, content, **kwargs):
+        # st.html is intentionally used for the shared masthead and hero.
+        # Markdown interprets indented HTML as a code block in production.
+        self.markdowns.append(content)
+
     def divider(self):
         pass
 
