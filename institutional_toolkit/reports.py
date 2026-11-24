@@ -45,7 +45,6 @@ def word_country(data: dict, country: str) -> bytes:
     for r in linked:
         doc.add_heading(r['domain'],2)
         doc.add_paragraph('Institution: '+(r.get('responsible_institution') or 'Not stated'))
-        doc.add_paragraph('Membership: '+(r.get('formal_membership') or 'Not verified'))
         doc.add_paragraph('Role: '+(r.get('functional_responsibility') or 'Not verified'))
         doc.add_paragraph('Limitations: '+(r.get('classification_rationale') or 'Not specified'))
         doc.add_paragraph('Evidence: '+r['source_url'])
@@ -104,7 +103,6 @@ def word_comparison(data: dict, a: str, b: str) -> bytes:
             v=row[country]
             doc.add_paragraph(f"{country} | {v['evidence']}")
             doc.add_paragraph('Institution: '+(v['responsible_institution'] or 'Not verified'))
-            doc.add_paragraph('Membership: '+(v['membership'] or 'Not verified'))
             doc.add_paragraph('Function: '+(v['functional_responsibility'] or 'Not verified'))
             doc.add_paragraph('Source: '+(v['source_url'] or 'No source linked'))
             if v['rationale']:doc.add_paragraph('Qualification: '+v['rationale'])
@@ -186,3 +184,41 @@ def as_csv(rows: list[dict]) -> bytes:
     b=io.StringIO(); cols=list(rows[0]); w=csv.DictWriter(b,fieldnames=cols,extrasaction='ignore');w.writeheader()
     for row in rows:w.writerow({c:_safe_excel(row.get(c,'')) for c in cols})
     return b.getvalue().encode('utf-8-sig')
+
+
+def word_rag(title: str, question: str, hits: list[dict], result: dict) -> bytes:
+    """Reference-backed AI working draft; include retrieved source IDs and URLs."""
+    doc = Document()
+    _header(doc, 'Road Safety Institutional Toolkit', title + ' | Controlled RAG evidence analysis')
+    doc.add_heading('Research question', 1)
+    doc.add_paragraph(question or 'Research question not specified')
+    doc.add_heading('Interpretation status', 1)
+    doc.add_paragraph(result.get('status', 'Not generated'))
+    doc.add_paragraph('The cited passages are previously prepared research excerpts, not necessarily quotations from the linked source documents. Any AI-assisted interpretation requires review of the actual official sources before publication.')
+    doc.add_heading('Evidence-grounded findings', 1)
+    if not result.get('claims'):
+        doc.add_paragraph('No source-grounded AI conclusion was available. Consult the retrieved evidence below.')
+    for claim in result.get('claims', []):
+        doc.add_paragraph(claim['text'], style='List Bullet')
+        for ref in claim.get('references', []):
+            doc.add_paragraph('Reference: ' + ref['evidence_id'] + ' | ' + ref['url'])
+    doc.add_heading('Evidence limitations', 1)
+    for text in result.get('limitations', []):
+        doc.add_paragraph(text, style='List Bullet')
+    doc.add_heading('Outstanding verification questions', 1)
+    for text in result.get('questions_for_verification', []):
+        doc.add_paragraph(text, style='List Bullet')
+    doc.add_heading('Retrieval record and source bibliography', 1)
+    if not hits:
+        doc.add_paragraph('No relevant source-linked research records were retrieved.')
+    for hit in hits:
+        doc.add_heading(hit['evidence_id']+' | '+hit['country']+' | '+(hit.get('domain') or hit['record_type']), 2)
+        doc.add_paragraph('Jurisdiction: '+(hit.get('jurisdiction') or 'Not recorded'))
+        doc.add_paragraph('Source: '+hit['source_url'])
+        doc.add_paragraph('Source locator: '+(hit.get('locator') or 'Not supplied')+' | Research check date: '+(hit.get('checked_on') or 'Not supplied'))
+        doc.add_paragraph('Reviewed excerpt: '+hit['excerpt'][:650])
+        if hit.get('limitations'):
+            doc.add_paragraph('Limitations: '+hit['limitations'][:450])
+    buff=io.BytesIO()
+    doc.save(buff)
+    return buff.getvalue()

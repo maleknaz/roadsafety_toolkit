@@ -1,11 +1,12 @@
-"""Global Road Safety dashboard, consolidated static HTML and research datasets."""
+"""Road Safety Toolkit, consolidated static HTML and institutional analysis."""
 from pathlib import Path
 import streamlit as st
 import streamlit.components.v1 as components
 from institutional_toolkit import render as render_institutional_toolkit
+from portal_theme import PORTAL_CSS
 
 ROOT=Path(__file__).resolve().parent
-st.set_page_config(page_title="Global Road Safety Atlas",page_icon="🚦",layout="wide",initial_sidebar_state="collapsed")
+st.set_page_config(page_title="Road Safety Toolkit",page_icon="🚦",layout="wide",initial_sidebar_state="collapsed")
 st.markdown("""<style>
 /* Only the outer Atlas navigation is styled here; embedded HTML pages stay untouched. */
 header[data-testid="stHeader"]{height:0!important;visibility:hidden!important}
@@ -143,10 +144,32 @@ iframe{border:0!important}
 @media(max-width:720px){:is(.st-key-road_safety_planner,.st-key-road_safety_toolkit){padding:0 12px 22px!important}:is(.st-key-road_safety_planner,.st-key-road_safety_toolkit) .rs-planner-band{margin:0 -12px 18px!important;padding:15px 16px!important}:is(.st-key-road_safety_planner,.st-key-road_safety_toolkit) .rs-planner-band h1{font-size:25px!important}}
 </style>""",unsafe_allow_html=True)
 
-def show(filename,height=1550):
-    path=ROOT/filename
-    if not path.is_file():st.error(f"Missing: {filename}");return
-    components.html(path.read_text(encoding="utf-8"),height=height,scrolling=True)
+# Editorial Lab-inspired app navigation; appended last to win older tab CSS.
+st.markdown('<style>'+PORTAL_CSS+'</style>',unsafe_allow_html=True)
+
+@st.cache_data(show_spinner=False, max_entries=16)
+def _read_embedded_html(filename: str, modified_ns: int) -> str:
+    """Cache large embedded pages across Streamlit widget reruns.
+
+    Including the file modification timestamp ensures changed HTML is reloaded
+    on the next request, rather than retaining a stale cached copy.
+    """
+    return (ROOT / filename).read_text(encoding="utf-8")
+
+
+def show(filename, height=1550):
+    path = ROOT / filename
+    if not path.is_file():
+        st.error(f"Missing: {filename}")
+        return
+    components.html(_read_embedded_html(filename, path.stat().st_mtime_ns),
+                    height=height, scrolling=True)
+
+@st.fragment
+# Keep country/mode widgets reactive without reconstructing the six heavy
+# static HTML iframes on each interaction. This is supported by Streamlit 1.40+.
+def _show_institutional_toolkit():
+    render_institutional_toolkit()
 
 # The checklist is the final tab. Research datasets are not exposed for download.
 labels=[
@@ -172,6 +195,6 @@ tabs=st.tabs(labels)
 for label, filename, tab in zip(labels, files, tabs):
     with tab:
         if filename == "Checklists_for_Your_Task_Force.html":
-            render_institutional_toolkit()
+            _show_institutional_toolkit()
         else:
             show(filename, 1500 if filename == "Dashboard_Overview.html" else 2000)

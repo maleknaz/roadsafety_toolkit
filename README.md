@@ -37,3 +37,12 @@ Require authentication; enforce authorization at the database API layer; keep re
 ## Testing completed
 
 Validated source counts: 195 countries, 17 domains, 72 defined interventions, 27 research mechanisms, 75 source-specific findings. Python syntax compilation passed; Word and Excel byte generation passed on a sample Serbia draft. This environment does not have Streamlit installed, so full interactive web deployment remains to be tested in Streamlit Cloud.
+
+## Institutional Toolkit update, November 2026
+
+The former final "Checklists for your taskforce" tab has been updated to **Road Safety Institutional Toolkit**. It adds country evidence, coverage benchmarking, conditional pairwise comparison, adaptive pre-assessment questions, and prefilled evidence-aware checklists. The original detailed `planner.py` remains available within the new checklist workflow. See [TOOLKIT_UPDATE_GUIDE.md](TOOLKIT_UPDATE_GUIDE.md) for deployment instructions, evidence limitations and optional AI configuration.
+
+
+## Visual design update (November 2026)
+
+The app includes a Lab-inspired evidence-to-action visual system. The shared Streamlit navigation CSS is in `portal_theme.py`; the six embedded HTML pages retain standalone styling. The institutional toolkit uses the same portal theme, preserving the original research/RAG features and responsive four-column domain comparison. See `LAB_UI_UPDATE_GUIDE.md` for file changes and test results.
