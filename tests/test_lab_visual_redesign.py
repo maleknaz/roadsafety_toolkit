@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 from playwright.sync_api import sync_playwright
 from portal_theme import PORTAL_CSS, EMBEDDED_CSS
+from unified_brand import header_html
 
 ROOT=Path(__file__).resolve().parents[1]
 
@@ -19,15 +20,22 @@ def toolkit_intro_html() -> str:
 
 
 def toolkit_fixture() -> str:
+    old = toolkit_intro_html()
+    before, main = old.split('<div class="rst-main">', 1)
+    styles = before.split('<div class="rst-mast"', 1)[0]
+    shared = header_html('Road Safety Institutional Toolkit', 'COUNTRY EVIDENCE AND INSTITUTIONAL ACTION',
+                         'Road Safety <em>Institutional Toolkit</em>',
+                         'Explore institutional evidence and compare countries.',
+                         '195 countries · 17 domains · 72 interventions')
     return ('<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">'
             '<style>body{margin:0;background:#f7fafb;} .st-key-road_safety_toolkit{background:#f7fafb;padding:0 24px 25px;}</style>'
             '</head><body><div class="st-key-road_safety_toolkit"><div data-testid="stMarkdownContainer">'
-            +toolkit_intro_html()+'</div><div style="max-width:1450px;margin:auto;color:#17384b;font-family:Arial">'
+            +styles+shared+'<div class="rst-main">'+main+'</div></div>'
+            '<div style="max-width:1450px;margin:auto;color:#17384b;font-family:Arial">'
             '<div class="rs-workspace-head"><strong>Start your country assessment</strong>'
             '<p>Select a country and one of the four services below.</p></div>'
             '<label for="country">Select your country</label><br><select id="country" style="width:100%;padding:14px;background:#fff;border:1px solid #cdd;">'
             '<option>Estonia</option><option>Sweden</option></select></div></div></body></html>')
-
 
 @pytest.mark.parametrize('width,columns',[(1440,4),(960,2),(390,1)])
 def test_toolkit_editorial_header_layout_in_chromium(width,columns):
@@ -41,9 +49,9 @@ def test_toolkit_editorial_header_layout_in_chromium(width,columns):
         assert page.locator('.rst-area').count()==4
         count=page.locator('.rst-areas').evaluate('el=>getComputedStyle(el).gridTemplateColumns.split(" ").length')
         assert count==columns
-        assert page.locator('.rst-mast').evaluate('el=>Math.round(el.getBoundingClientRect().height)')==70
+        assert page.locator('.rsu-masthead').evaluate('el=>Math.round(el.getBoundingClientRect().height)')==(74 if width>720 else 64)
         if width>=740:
-            assert page.locator('.rst-hero').evaluate('el=>Math.round(el.getBoundingClientRect().height)')==405
+            assert page.locator('.rsu-hero').evaluate('el=>Math.round(el.getBoundingClientRect().height)')==405
         assert page.locator('body').evaluate('el=>el.scrollWidth')<=width+1
         assert page.locator('.rst-area').first.evaluate('el=>getComputedStyle(el).backgroundColor')=='rgb(255, 255, 255)'
         assert not errors

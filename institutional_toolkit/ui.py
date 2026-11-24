@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 import json, re
 from html import escape
+from unified_brand import header_html
 import streamlit as st
 from . import evidence as ev, reports, updates, rag, domain_views
 
@@ -509,8 +510,24 @@ TOOLKIT_INTRO_HTML = '<style id="rs-lab-toolkit-v3">\n/* Road Safety Lab inspire
 
 
 def _render_toolkit_intro() -> None:
-    """Render the fixed-height, Atlas-style Toolkit header and concise feature guide."""
-    st.markdown(TOOLKIT_INTRO_HTML, unsafe_allow_html=True)
+    """Use the SAME UNITAR-informed header as all six embedded HTML pages."""
+    # Retain the original four service cards, retrieval explanation, and styling,
+    # but discard the outdated, separate Toolkit masthead and hero.
+    before_main, after_main = TOOLKIT_INTRO_HTML.split('<div class="rst-main">', 1)
+    existing_styles = before_main.split('<div class="rst-mast"', 1)[0]
+    standard_header = header_html(
+        section='Road Safety Institutional Toolkit',
+        eyebrow='COUNTRY EVIDENCE AND INSTITUTIONAL ACTION',
+        title_html='Road Safety <em>Institutional Toolkit</em>',
+        description=(
+            'Explore institutional evidence, compare national arrangements, '
+            'and develop a country-specific road safety coordination improvement plan.'
+        ),
+        meta='195 countries · 17 institutional domains · 72 defined interventions',
+        legacy_mast='grs-fixed-banner',
+    )
+    st.markdown(existing_styles + standard_header + '<div class="rst-main">' + after_main,
+                unsafe_allow_html=True)
 
 
 def render():

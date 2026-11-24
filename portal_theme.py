@@ -155,3 +155,8 @@ body>header.hero:not(.rs-lab-home-hero)::after{
 @media(max-width:800px){body>header.hero:not(.rs-lab-home-hero)::after{opacity:.14!important;right:-160px!important}}
 </style>
 """
+
+
+# Latest shared, UNITAR-informed palette for all seven Streamlit tabs.
+from unified_brand import APP_BRAND_CSS
+PORTAL_CSS += "\n" + APP_BRAND_CSS

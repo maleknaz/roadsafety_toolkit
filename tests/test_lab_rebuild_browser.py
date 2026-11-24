@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 from playwright.sync_api import sync_playwright
 from institutional_toolkit import evidence, domain_views
+from unified_brand import header_html
 
 ROOT=Path(__file__).resolve().parents[1]
 
@@ -52,15 +53,22 @@ def test_both_domain_modes_are_17_card_interactive_grids(viewport,cols):
 
 @pytest.mark.parametrize('viewport,cols',[(1440,4),(960,2),(390,1)])
 def test_home_and_toolkit_have_consistent_illustrated_four_area_layouts(viewport,cols):
-    intro=('<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">'
-           '<style>body{margin:0;background:#f7fafb}.st-key-road_safety_toolkit{padding:0 24px 20px;background:#f7fafb}</style>'
-           '</head><body><div class="st-key-road_safety_toolkit">'+_intro()+'</div></body></html>')
+    old_intro = _intro()
+    before_main, main = old_intro.split('<div class="rst-main">', 1)
+    styles = before_main.split('<div class="rst-mast"', 1)[0]
+    shared_header = header_html('Road Safety Institutional Toolkit','COUNTRY EVIDENCE AND INSTITUTIONAL ACTION',
+                                'Road Safety <em>Institutional Toolkit</em>',
+                                'Explore evidence, compare institutions, develop improvement plans.',
+                                '195 countries · 17 domains · 72 interventions')
+    intro = ('<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">'
+             '<style>body{margin:0;background:#f7fafb}.st-key-road_safety_toolkit{padding:0 24px 20px;background:#f7fafb}</style>'
+             '</head><body><div class="st-key-road_safety_toolkit">'+styles+shared_header+'<div class="rst-main">'+main+'</div></body></html>')
     homepage=(ROOT/'Dashboard_Overview.html').read_text()
     with sync_playwright() as pw:
         browser=pw.chromium.launch(executable_path='/usr/bin/chromium',args=['--no-sandbox'],headless=True)
         for html,card_selector,grid_selector,graphic_selector in [
-            (intro,'.rst-area','.rst-areas','.rst-hero-art svg'),
-            (homepage,'.rs-lab-home-area','.rs-lab-home-area-grid','.rs-lab-home-art svg')
+            (intro,'.rst-area','.rst-areas','.rsu-art svg'),
+            (homepage,'.rs-lab-home-area','.rs-lab-home-area-grid','.rsu-art svg')
         ]:
             page=browser.new_page(viewport={'width':viewport,'height':950})
             errors=[];page.on('pageerror',lambda exc:errors.append(str(exc)))

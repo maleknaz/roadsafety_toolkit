@@ -1,3 +1,5 @@
+> **November 2026 UI release**: All seven headers now share the screenshot-matched UNITAR-informed masthead and blue hero. See [UNITAR_HEADER_REDESIGN_GUIDE.md](UNITAR_HEADER_REDESIGN_GUIDE.md).
+
 # Road Safety Toolkit
 
 ## Current Lab-style UI release (November 24, 2026)
