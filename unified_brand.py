@@ -34,7 +34,7 @@ body>.grs-fixed-banner.rsu-masthead,body>.grs-consistent-masthead.rsu-masthead{h
 .rsu-masthead .rsu-mark{width:7px!important;height:27px!important;border-radius:3px!important;background:var(--rsu-blue)!important;flex-shrink:0!important;}
 .rsu-masthead .rsu-name{font-size:13px!important;font-weight:850!important;letter-spacing:.1em!important;text-transform:uppercase!important;white-space:nowrap!important;color:#143A59!important;}
 .rsu-masthead .rsu-current{font-size:12px!important;font-weight:500!important;color:#54748C!important;white-space:normal!important;}
-.rsu-masthead .rsu-date{font-size:12px!important;white-space:nowrap!important;color:#5A7890!important;}
+
 /* Full-width editorial hero with a single fixed desktop height. */
 body>header.hero.rsu-hero,header.rsu-hero,.st-key-road_safety_toolkit .rsu-hero{box-sizing:border-box!important;display:block!important;position:relative!important;isolation:isolate!important;width:100%!important;height:405px!important;min-height:405px!important;max-height:405px!important;margin:0!important;padding:0!important;overflow:hidden!important;border:0!important;background:linear-gradient(113deg,#07345F 0%,#08487F 56%,#0A619C 100%)!important;color:#fff!important;}
 body>header.hero.rsu-hero::before,header.rsu-hero::before{content:""!important;position:absolute!important;z-index:0!important;right:-215px!important;top:-210px!important;width:595px!important;height:595px!important;border-radius:50%!important;border:1px solid rgba(185,231,248,.18)!important;box-shadow:0 0 0 72px rgba(166,225,236,.035),0 0 0 146px rgba(166,225,236,.025)!important;pointer-events:none!important;}
@@ -70,7 +70,7 @@ body a:focus-visible,body button:focus-visible,body select:focus-visible,body in
 @media(max-width:1100px){.rsu-hero .rsu-art{right:-105px!important;opacity:.23!important;}.rsu-hero .rsu-copy{max-width:900px!important;}}
 @media(max-width:720px){
 .rsu-masthead,body>.grs-fixed-banner.rsu-masthead,body>.grs-consistent-masthead.rsu-masthead{height:64px!important;min-height:64px!important;max-height:64px!important;}
-.rsu-masthead .rsu-date{display:none!important;}
+
 .rsu-masthead .rsu-name{font-size:11px!important;letter-spacing:.04em!important;}
 .rsu-masthead .rsu-breadcrumb{gap:8px!important;}
 .rsu-masthead .rsu-current{font-size:11px!important;}
@@ -99,7 +99,7 @@ def header_html(section: str, eyebrow: str, title_html: str,
     mast = f'''<div class="{legacy_mast} rsu-masthead" role="banner">
       <div class="rsu-mast-inner"><div class="rsu-breadcrumb"><span class="rsu-mark" aria-hidden="true"></span>
       <span class="rsu-name">Road Safety Toolkit</span><span class="rsu-current">/ {escape(section)}</span></div>
-      <span class="rsu-date">Research dashboard · November 2026</span></div></div>'''
+      </div></div>'''
     h_id = f' id="{escape(hero_id,quote=True)}"' if hero_id else ''
     hero = f'''<header class="hero rsu-hero"{h_id}>
       <div class="rsu-hero-inner"><div class="rsu-copy">
