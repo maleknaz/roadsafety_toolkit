@@ -282,11 +282,117 @@ def _render_domain_grid(rows: list[dict], country: str, second: str) -> None:
 
 
 def _render_country_domain_grid(data:dict, country:str)->None:
-    """Country evidence across all domains, using the same tested card grid."""
-    import streamlit.components.v1 as components
-    st.subheader('Institutional evidence by domain')
-    st.caption('All 17 domains are displayed together. Click one for source-linked institutions and responsibilities; missing records are not evidence of absence.')
-    components.html(domain_views.country_view(data, country), height=1010, scrolling=True)
+    """Native Streamlit 4-column card grid for Explore Country Findings.
+
+    This intentionally does NOT use expanders or an embedded iframe. Selecting
+    a card reruns only the Toolkit fragment, then shows that domain's research
+    records in one full-width detail table. Selection is namespaced by country.
+    """
+    st.subheader('Institutional information')
+    st.caption('Choose one of the 17 institutional domains. Four cards appear per row on desktop; select a card to see the supporting institutions, responsibilities, and sources below. Source coverage is not evidence of implementation.')
+    ctx = ev.country_context(data, country)
+    domains = list(data['domains'])
+    by_domain = {domain: [r for r in ctx['institutional'] if r.get('domain') == domain]
+                 for domain in domains}
+    selected_key = 'rs_evidence_domain_selected_' + _slug(country)
+    if st.session_state.get(selected_key) not in domains:
+        st.session_state[selected_key] = next(
+            (domain for domain in domains if any(ev.url(r.get('source_url', '')) for r in by_domain[domain])),
+            domains[0] if domains else None,
+        )
+
+    # The grid is native Streamlit, not an HTML snapshot. The selected card and
+    # its details are keyed to the currently selected country.
+    st.markdown("""<style>
+      .st-key-rs_country_domain_grid [data-testid="stHorizontalBlock"] {align-items:stretch!important}
+      .st-key-rs_country_domain_grid [class*="st-key-rs_domain_card_"] {
+        background:#fff!important;border:1px solid #cfdde8!important;
+        border-radius:12px!important;padding:10px 11px!important;
+        height:100%;box-shadow:0 2px 10px rgba(7,45,84,.045)!important;
+      }
+      .st-key-rs_country_domain_grid [class*="st-key-rs_domain_card_"] [data-testid="stButton"] button {
+        width:100%!important;min-height:83px!important;height:auto!important;
+        white-space:normal!important;text-align:left!important;justify-content:flex-start!important;
+        color:#123b60!important;-webkit-text-fill-color:#123b60!important;
+        background:#fff!important;border:1px solid transparent!important;
+        font-weight:730!important;font-size:13px!important;line-height:1.35!important;
+      }
+      .st-key-rs_country_domain_grid [class*="st-key-rs_domain_card_"] [data-testid="stButton"] button:hover {
+        border-color:#3e8ede!important;background:#eef6ff!important;
+      }
+      .st-key-rs_country_domain_grid [class*="st-key-rs_domain_card_"] [data-testid="stCaptionContainer"] p {
+        color:#506a7d!important;font-size:11px!important;line-height:1.3!important;
+      }
+      .st-key-rs_country_domain_grid [class*="st-key-rs_domain_card_selected_"] {
+        border:2px solid #3e8ede!important;background:#edf5ff!important;
+        padding:9px 10px!important;
+      }
+      .st-key-rs_country_domain_grid [class*="st-key-rs_domain_card_selected_"] [data-testid="stButton"] button {
+        background:#edf5ff!important;color:#073b71!important;
+        -webkit-text-fill-color:#073b71!important;
+      }
+      @media(max-width:800px) {
+        .st-key-rs_country_domain_grid [data-testid="stHorizontalBlock"] {
+          flex-wrap:wrap!important;
+        }
+        .st-key-rs_country_domain_grid [data-testid="column"] {
+          min-width:calc(50% - 14px)!important;flex:1 1 calc(50% - 14px)!important;
+        }
+      }
+      @media(max-width:480px) {
+        .st-key-rs_country_domain_grid [data-testid="column"] {
+          min-width:100%!important;flex:1 1 100%!important;
+        }
+      }
+    </style>""", unsafe_allow_html=True)
+
+    with st.container(key='rs_country_domain_grid'):
+        for start in range(0, len(domains), 4):
+            columns = st.columns(4, gap='small')
+            for offset, col in enumerate(columns):
+                index = start + offset
+                if index >= len(domains):
+                    continue
+                domain = domains[index]
+                source_count = sum(bool(ev.url(r.get('source_url', '')))
+                                   for r in by_domain[domain])
+                selected = st.session_state[selected_key] == domain
+                with col:
+                    key = ('rs_domain_card_selected_' if selected else 'rs_domain_card_') + _slug(country) + '_' + str(index)
+                    with st.container(key=key):
+                        if st.button(f'{index + 1:02d}  ·  {domain}',
+                                     key='rs_choose_domain_' + _slug(country) + '_' + str(index),
+                                     use_container_width=True):
+                            st.session_state[selected_key] = domain
+                            st.rerun(scope='fragment')
+                        st.caption(f'{source_count} linked research record' +
+                                   ('' if source_count == 1 else 's') if source_count
+                                   else 'No linked research records')
+
+    selected_domain = st.session_state[selected_key]
+    if not selected_domain:
+        return
+    records = by_domain[selected_domain]
+    linked = [r for r in records if ev.url(r.get('source_url', ''))]
+    st.markdown('### ' + selected_domain)
+    st.caption(f'{country} · {len(linked)} source-linked institutional record(s) in this domain')
+    if not linked:
+        _light_notice('No source-linked institutional record was identified for this domain in the reviewed subset. This does not mean the institution or function is absent.')
+        return
+    table = []
+    for r in linked:
+        table.append({
+            'Institution': r.get('responsible_institution') or 'Not specified',
+            'Institutional role': r.get('functional_responsibility') or 'Not documented',
+            'Implementation evidence': r.get('implementation_evidence') or 'Not verified',
+            'Original source': ev.url(r.get('source_url', '')),
+        })
+    st.dataframe(table, use_container_width=True, hide_index=True,
+                 column_config={'Original source': st.column_config.LinkColumn('Original source')})
+    for r in linked:
+        if r.get('classification_rationale'):
+            st.caption('Research qualification: ' + r['classification_rationale'])
+    st.caption('These are source-linked research findings, not confirmation of formal membership, operational implementation, or road safety outcomes.')
 
 
 def _pairwise(data:dict,country:str):
