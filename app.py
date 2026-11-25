@@ -2,7 +2,36 @@
 from pathlib import Path
 import streamlit as st
 import streamlit.components.v1 as components
-from institutional_toolkit import render as render_institutional_toolkit, render_agent as render_intelligence_agent
+# Import Toolkit screens when their tabs render, not at process startup.
+# This keeps all public research pages working if a GitHub upload updates
+# app.py before the institutional_toolkit package has been fully updated.
+def render_institutional_toolkit():
+    try:
+        from institutional_toolkit import render as handler
+        return handler()
+    except ImportError as exc:
+        st.error("The Institutional Toolkit files are missing or out of sync. Upload the complete institutional_toolkit folder from the latest release.")
+        st.exception(exc)
+
+
+def render_intelligence_agent():
+    try:
+        from institutional_toolkit import render_agent as handler
+    except ImportError:
+        # Backward compatibility: the previous package __init__.py exposed
+        # only `render`, even if ui.py had already been upgraded.
+        try:
+            from institutional_toolkit.ui import render_agent as handler
+        except ImportError as exc:
+            st.error("Ask the Evidence needs the updated institutional_toolkit/ui.py and __init__.py files. Upload the complete institutional_toolkit folder.")
+            st.exception(exc)
+            return
+    try:
+        return handler()
+    except ImportError as exc:
+        st.error("Ask the Evidence could not load its dependencies. Check the complete institutional_toolkit folder and requirements.txt.")
+        st.exception(exc)
+
 from portal_theme import PORTAL_CSS
 
 ROOT=Path(__file__).resolve().parent
