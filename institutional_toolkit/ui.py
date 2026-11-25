@@ -30,6 +30,11 @@ def _context_changed(kind: str) -> None:
         st.session_state['rs_previous_primary_country'] = st.session_state.get('rs_context_country')
         st.session_state['rs_context_country'] = st.session_state.get('rs_toolkit_country')
         st.session_state.pop('rs_open_legacy', None)
+        # A newly chosen country begins with its own profile, avoiding stale
+        # detail or export context from the previous country's journey.
+        chosen = st.session_state.get('rs_toolkit_country')
+        if chosen:
+            st.session_state[_explore_stage_key(chosen)] = 'profile'
     elif kind == 'mode':
         st.session_state['rs_context_mode'] = st.session_state.get('rs_toolkit_mode')
     elif kind == 'comparison':
@@ -173,43 +178,281 @@ def _update_check(country: str, ctx: dict, focus: str, key: str):
             st.caption('Candidate updates do not overwrite existing data or automatically change checklist statuses.')
 
 
-def _country_findings(data:dict,country:str):
-    ctx=ev.country_context(data,country);m=ev.coverage(data,country)
-    c1,c2,c3=st.columns(3)
-    c1.metric('Reviewed coordinating mechanisms',m['Reviewed mechanisms'])
-    c2.metric('Institutional domains with sources',f"{m['Institutional domains with sources']} / {m['Total domains']}")
-    c3.metric('Interventions with specific sources',f"{m['Source-linked checklist items']} / {m['Total eligible interventions']}")
+# A guided view of the already-implemented Explore Findings capabilities.
+# Keep the four top-level Toolkit services unchanged, and use the same country
+# context, domain grid, research records and Word exporter as before.
+EXPLORE_STAGES = (
+    ('profile', 'Review country profile', 'Coordinating institutions and coverage'),
+    ('domains', 'Explore 17 domains', 'Responsibilities and linked institutional evidence'),
+    ('sources', 'Trace supporting sources', 'Cited interventions and remaining evidence gaps'),
+    ('report', 'Updates and report', 'Optional freshness check and downloadable outputs'),
+)
+
+
+EXPLORE_JOURNEY_CSS = """<style id="rs-explore-journey-style">
+.st-key-rs_explore_journey {margin:12px 0 20px!important}
+.st-key-rs_explore_journey .rs-explore-eyebrow {
+  text-transform:uppercase;letter-spacing:.10em;font-weight:800;font-size:11px;
+  color:#176cb2!important;margin-bottom:5px;
+}
+.st-key-rs_explore_journey .rs-explore-title {
+  font-size:22px;font-weight:800;color:#073b71!important;margin:0 0 6px;
+}
+.st-key-rs_explore_journey .rs-explore-description {
+  color:#4f6880!important;font-size:14px;line-height:1.55;margin-bottom:18px;
+}
+.st-key-rs_explore_journey [class*="st-key-rs_explore_stage_"] {
+  background:#fff!important;border:1px solid #cbdfe9!important;
+  border-radius:12px!important;padding:12px 14px!important;
+  min-height:134px!important;box-shadow:0 3px 8px rgba(7,59,113,.045)!important;
+}
+.st-key-rs_explore_journey [class*="st-key-rs_explore_stage_active_"] {
+  background:#eaf4ff!important;border:2px solid #3e8ede!important;
+  padding:11px 13px!important;
+}
+.st-key-rs_explore_journey [class*="st-key-rs_explore_stage_"] [data-testid="stButton"] button {
+  border:0!important;box-shadow:none!important;color:#073b71!important;
+  -webkit-text-fill-color:#073b71!important;font-size:14px!important;
+  font-weight:750!important;background:transparent!important;
+  white-space:normal!important;text-align:left!important;min-height:48px!important;
+  padding:3px 0!important;line-height:1.35!important;
+}
+.st-key-rs_explore_journey [class*="st-key-rs_explore_stage_"] [data-testid="stCaptionContainer"] p {
+  color:#4b647b!important;-webkit-text-fill-color:#4b647b!important;
+  font-size:11px!important;line-height:1.4!important;
+}
+.st-key-rs_explore_output {
+  background:#f1f7fe!important;border:1px solid #c4dbf1!important;
+  border-left:4px solid #3e8ede!important;border-radius:9px!important;
+  padding:15px 18px!important;margin:10px 0 16px!important;
+}
+.st-key-rs_explore_output :is(p,strong) {color:#173c57!important}
+@media(max-width:800px){
+  .st-key-rs_explore_journey [data-testid="stHorizontalBlock"] {flex-wrap:wrap!important}
+  .st-key-rs_explore_journey [data-testid="column"] {
+    min-width:calc(50% - 15px)!important;flex:1 1 calc(50% - 15px)!important;
+  }
+}
+@media(max-width:480px){
+  .st-key-rs_explore_journey [data-testid="column"] {
+    min-width:100%!important;flex:1 1 100%!important;
+  }
+  .st-key-rs_explore_journey [class*="st-key-rs_explore_stage_"] {min-height:auto!important}
+}
+</style>"""
+
+
+def _explore_stage_key(country: str) -> str:
+    """Country-keyed state prevents a switch from showing the prior country's data."""
+    return 'rs_explore_stage_' + _slug(country)
+
+
+def _set_explore_stage(key: str, stage: str) -> None:
+    if stage not in {item[0] for item in EXPLORE_STAGES}:
+        raise ValueError('Unknown Explore Findings stage: ' + stage)
+    st.session_state[key] = stage
+
+
+def _source_register_rows(data: dict, country: str) -> list[dict]:
+    """Map existing source-specific citations to readable downloadable rows.
+
+    Unlinked records are NOT counted as evidence; all rows come from sources_for.
+    """
+    ctx = ev.country_context(data, country)
+    domain_by_id = {r['matrix_id']: r.get('domain', '') for r in data['checklist']}
+    rows = []
+    for record in ev.sources_for(ctx):
+        kind = record.get('kind', '')
+        rows.append({
+            'Country': country,
+            'Evidence type': ('Institutional' if kind == 'institutional' else 'Intervention'),
+            'Institutional domain': record.get('domain') or domain_by_id.get(record.get('matrix_id'), '') or 'Not mapped',
+            'Intervention ID': record.get('matrix_id') or '',
+            'Mechanism profile': record.get('profile_id') or '',
+            'Document': record.get('document') or 'Not specified',
+            'Last checked': record.get('checked_on') or 'Not recorded',
+            'Source URL': record.get('url') or '',
+        })
+    return rows
+
+
+def _explore_journey_navigation(country: str) -> tuple[str, int]:
+    """Four real Streamlit controls, not inert HTML card mockups."""
+    key = _explore_stage_key(country)
+    valid = [item[0] for item in EXPLORE_STAGES]
+    if st.session_state.get(key) not in valid:
+        st.session_state[key] = 'profile'
+    current = st.session_state[key]
+    index = valid.index(current)
+    st.markdown(EXPLORE_JOURNEY_CSS, unsafe_allow_html=True)
+    with st.container(key='rs_explore_journey'):
+        st.markdown('<div class="rs-explore-eyebrow">Explore country findings</div>'
+                    '<div class="rs-explore-title">Your country evidence journey</div>'
+                    '<div class="rs-explore-description">Review the country profile, inspect institutional domains, '
+                    'trace supporting sources, and prepare a referenced report. Select any step to begin.</div>',
+                    unsafe_allow_html=True)
+        cols = st.columns(4, gap='small')
+        for i, ((stage, label, description), col) in enumerate(zip(EXPLORE_STAGES, cols)):
+            with col:
+                with st.container(key=('rs_explore_stage_active_' if stage == current
+                                       else 'rs_explore_stage_') + str(i + 1)):
+                    st.button(f'{i + 1:02d} · {label}', key='rs_explore_go_' + _slug(country) + '_' + stage,
+                              use_container_width=True, on_click=_set_explore_stage, args=(key, stage))
+                    st.caption(description)
+        st.caption(f'Step {index + 1} of 4 for {country} · '
+                   'Output: referenced country findings report (Word).')
+    return current, index
+
+
+def _explore_previous_next(country: str, index: int) -> None:
+    """Guide first-time users without forcing a fixed linear workflow."""
+    key = _explore_stage_key(country)
+    prev_col, spacer, next_col = st.columns([1, 2, 1], gap='small')
+    with prev_col:
+        if index > 0:
+            st.button('← Previous step', key='rs_explore_prev_' + _slug(country),
+                      on_click=_set_explore_stage, args=(key, EXPLORE_STAGES[index - 1][0]),
+                      use_container_width=True)
+    with next_col:
+        if index < len(EXPLORE_STAGES) - 1:
+            st.button('Next step →', key='rs_explore_next_' + _slug(country),
+                      on_click=_set_explore_stage, args=(key, EXPLORE_STAGES[index + 1][0]),
+                      use_container_width=True)
+
+
+def _explore_profile(data: dict, country: str, ctx: dict, metrics: dict) -> None:
+    st.subheader(f'{country} · Country profile')
+    cols = st.columns(3)
+    cols[0].metric('Reviewed coordinating mechanisms', metrics['Reviewed mechanisms'])
+    cols[1].metric('Domains with linked evidence',
+                   f"{metrics['Institutional domains with sources']} / {metrics['Total domains']}")
+    cols[2].metric('Interventions with specific sources',
+                   f"{metrics['Source-linked checklist items']} / {metrics['Total eligible interventions']}")
     _boundary()
-    indexed = rag.corpus(data,country,DATA)
-    distinct_links = len({r.source_url for r in indexed})
-    st.caption(f'Source-linked knowledge index: {len(indexed)} reviewed excerpts from {distinct_links} distinct source URL(s) for {country}. '
-               'No full-document coverage is implied by these counts.')
-    if not ctx['mechanisms']:
-        _light_notice('This country has no detailed mechanism in the reviewed research subset. This is not evidence that it has no coordinating body. The global Atlas may contain additional findings.', 'warning')
+    if ctx['mechanisms']:
+        st.markdown('**Coordinating mechanisms identified in the reviewed research**')
+        for mechanism in ctx['mechanisms']:
+            with st.container(border=True):
+                st.write('**' + mechanism.get('coordinating_body', 'Unnamed mechanism') + '**')
+                st.caption('Jurisdiction: ' + (mechanism.get('jurisdiction') or 'Not stated') +
+                           ' · Research profile: ' + (mechanism.get('profile_id') or 'Not stated'))
     else:
-        st.subheader('Coordinating institutions in our reviewed research')
-        for p in ctx['mechanisms']:
-            st.write(f"**{p['coordinating_body']}**  ")
-            st.caption('Jurisdiction: '+p['jurisdiction']+' | Profile: '+p['profile_id'])
-        _render_country_domain_grid(data,country)
-        st.subheader('Specific interventions with documented sources')
-        items=[r for r in ev.checklist_prefill(data,country) if r['source_urls']]
-        if not items:_light_notice('No intervention-specific sources in the detailed research subset.')
-        for r in items:
-            with st.expander(r['matrix_id']+' • '+r['ideal_intervention']):
-                st.write('**Classification**: '+r['research_status'])
-                st.write(r['documented_action'] or 'No intervention details recorded')
-                if r['evidence_note']:st.caption('Research limitation: '+r['evidence_note'])
-                for u in r['source_urls']:_link(u)
-    if not ctx['mechanisms']:
-        _render_country_domain_grid(data,country)
-    st.caption('For a source-grounded question about these findings, use the Road Safety Intelligence Agent above.')
-    _update_check(country,ctx,'recent changes to coordinating institutions, mandates, membership and national strategies','find_'+country)
-    if st.button('Prepare printable country findings report',key='word_'+country):
-        st.session_state['doc_country_'+country]=reports.word_country(data,country)
-    if st.session_state.get('doc_country_'+country):
-        st.download_button('Download country findings (Word)',st.session_state['doc_country_'+country],
-                           file_name=_slug(country)+'_country_evidence_DRAFT.docx',mime='application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+        _light_notice(f'No detailed institutional mechanism was identified for {country} in this reviewed research '
+                      'subset. That does not prove that no institution exists. The Atlas and official '
+                      'country sources may provide additional information.', 'warning')
+    st.markdown('**Next: examine responsibilities by domain**')
+    st.caption('The next step shows 17 institutional domains. Select any card to review the '
+               'supporting institutions, responsibilities, implementation evidence and original sources.')
+    image_path = ROOT / 'assets' / 'Road_Safety_Toolkit_Use_Case_Map.png'
+    if image_path.is_file():
+        with st.expander('See how this journey fits into the full Toolkit'):
+            st.image(str(image_path), caption='Four Toolkit workflows and available document outputs.',
+                     use_container_width=True)
+            st.caption('Ask the Evidence is a separate tab for source-grounded free-text questions.')
+
+
+def _explore_domains(data: dict, country: str) -> None:
+    st.subheader('Explore institutional responsibilities')
+    st.caption('Select a domain card to review supporting research. Details appear below the '
+               'selected row. A domain without linked records is an evidence gap, not a confirmed institutional gap.')
+    _render_country_domain_grid(data, country)
+
+
+def _explore_sources(data: dict, country: str, ctx: dict, metrics: dict) -> None:
+    st.subheader('Supporting sources and evidence gaps')
+    register = _source_register_rows(data, country)
+    missing_domains = metrics['Total domains'] - metrics['Institutional domains with sources']
+    m1, m2 = st.columns(2)
+    m1.metric('Source-linked research references', len(register))
+    m2.metric('Domains without a linked institutional record', missing_domains)
+    st.caption('Counts reflect documentation in the reviewed dataset only; multiple records may refer to the same source.')
+    if register:
+        a, b = st.columns(2)
+        with a:
+            source_type = st.selectbox('Filter source type', ['All records', 'Institutional', 'Intervention'],
+                                       key='rs_explore_source_type_' + _slug(country))
+        with b:
+            domain = st.selectbox('Filter domain', ['All domains'] + list(data['domains']),
+                                  key='rs_explore_source_domain_' + _slug(country))
+        display = [r for r in register if
+                   (source_type == 'All records' or r['Evidence type'] == source_type) and
+                   (domain == 'All domains' or r['Institutional domain'] == domain)]
+        st.dataframe(display, use_container_width=True, hide_index=True,
+                     column_config={'Source URL': st.column_config.LinkColumn('Original source')})
+        st.download_button('Download all cited sources (CSV)', reports.as_csv(register),
+                           file_name=_slug(country) + '_source_register.csv',
+                           mime='text/csv', key='rs_explore_source_export_' + _slug(country))
+        if not display:
+            _light_notice('No linked records match these filters. Clear the filters or obtain '
+                          'additional official documentation.', 'info')
+    else:
+        _light_notice('No source-linked records are present in the reviewed evidence subset for '
+                      + country + '. This does not establish the absence of road safety coordination.', 'warning')
+
+    st.markdown('**Interventions with source-specific research**')
+    items = [r for r in ev.checklist_prefill(data, country) if r['source_urls']]
+    if not items:
+        st.caption('No intervention-specific source record was found for this country in the current dataset.')
+    for row in items:
+        with st.expander(row['matrix_id'] + ' · ' + row['ideal_intervention']):
+            st.write('**Research classification:** ' + row['research_status'])
+            st.write(row['documented_action'] or 'No documented action recorded')
+            if row['evidence_note']:
+                st.caption('Evidence limitation: ' + row['evidence_note'])
+            for source in row['source_urls']:
+                _link(source, 'Open supporting source')
+    _boundary()
+
+
+def _explore_report(data: dict, country: str, ctx: dict, metrics: dict) -> None:
+    st.subheader('Prepare your country evidence report')
+    with st.container(key='rs_explore_output'):
+        st.markdown('**What you will receive**')
+        st.write('A printable Word country findings report describing reviewed coordinating mechanisms, '
+                 'institutional domains, source-specific intervention findings, citations and limitations.')
+        st.caption('Country-specific evidence only. This is a draft research document, '
+                   'not a government-validated assessment or a national performance ranking.')
+    _update_check(country, ctx,
+                  'recent changes to coordinating institutions, mandates and national road safety strategies',
+                  'find_' + country)
+    if st.button('Prepare country findings report (Word)', key='word_' + country,
+                 type='primary'):
+        st.session_state['doc_country_' + country] = reports.word_country(data, country)
+    document = st.session_state.get('doc_country_' + country)
+    if document:
+        st.download_button('Download referenced report (Word)', document,
+                           file_name=_slug(country) + '_country_evidence_DRAFT.docx',
+                           mime='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                           key='rs_explore_word_export_' + _slug(country))
+    register = _source_register_rows(data, country)
+    if register:
+        st.download_button('Download cited source register (CSV)', reports.as_csv(register),
+                           file_name=_slug(country) + '_source_register.csv',
+                           mime='text/csv', key='rs_explore_final_source_export_' + _slug(country))
+    st.caption('To ask a free-text question about the evidence, use the separate Ask the Evidence tab.')
+    _boundary()
+
+
+def _country_findings(data: dict, country: str) -> None:
+    """Explore Findings journey using the existing country-scoped evidence engine.
+
+    Only the active step is rendered to avoid four long stacked sections. Other
+    Toolkit modes and the separate Agent tab remain untouched.
+    """
+    ctx = ev.country_context(data, country)
+    metrics = ev.coverage(data, country)
+    stage, index = _explore_journey_navigation(country)
+    st.divider()
+    if stage == 'profile':
+        _explore_profile(data, country, ctx, metrics)
+    elif stage == 'domains':
+        _explore_domains(data, country)
+    elif stage == 'sources':
+        _explore_sources(data, country, ctx, metrics)
+    else:
+        _explore_report(data, country, ctx, metrics)
+    st.divider()
+    _explore_previous_next(country, index)
 
 
 def _benchmark(data:dict,country:str):
@@ -766,7 +1009,7 @@ def render():
         )
         info = {
             'Explore country findings':('Understand the evidence',
-                'Review identified coordinating bodies, institutional roles and original sources. Select a domain in the 17-card grid to inspect its records. You can then retrieve source-linked research excerpts and export a country brief.'),
+                'Follow four interactive steps to review country institutions, explore the 17-domain grid, trace supporting sources, and prepare a referenced Word report. Your selected country controls all findings.'),
             'Benchmark internationally':('Benchmark documentation coverage',
                 'Compare the coverage of reviewed institutional evidence across the country directory. This is not a ranking of road safety performance. Download an executive brief or an Excel table.'),
             'Compare with another country':('Learn from another country',
