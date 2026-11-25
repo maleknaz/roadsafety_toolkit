@@ -135,4 +135,9 @@ def test_no_old_deep_question_form_duplicating_agent():
     source=(ROOT/'institutional_toolkit'/'ui.py').read_text(encoding='utf-8')
     assert "st.form('research_question_form')" not in source
     assert "st.subheader('Generate a source-grounded analytical comparison')" not in source
-    assert source.index('_agent_workspace(data,country)')<source.index("mode=st.radio('What would you like to do?'")
+    toolkit_part = source[source.index('def render():'):source.index('def render_agent():')]
+    assert '_agent_workspace(data,country)' not in toolkit_part
+    assert 'Road Safety Intelligence Agent' in source
+    agent_part = source[source.index('def render_agent():'):]
+    assert '_agent_workspace(data,country)' in agent_part
+    assert 'Ask the Evidence' in agent_part

@@ -28,9 +28,9 @@ def test_four_modes_and_honest_intelligence_claims():
     for label in ('Explore country findings', 'Benchmark internationally', 'Compare two countries',
                   'Generate a tailored checklist'):
         assert label in t
-    assert 'Explore country-specific research and identify evidence gaps' in t
-    assert 'With an API key' in t
-    assert 'never overwrite reviewed research automatically' in t
+    assert 'For free-text, citation-checked AI questions and country comparisons' in t
+    assert 'Ask the Evidence' in t
+    assert 'do not automatically overwrite reviewed records' in t
 
 
 def test_responsive_light_theme_and_separation():

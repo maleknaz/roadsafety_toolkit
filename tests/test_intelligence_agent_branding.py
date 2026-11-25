@@ -7,7 +7,7 @@ from pathlib import Path
 
 def test_visible_agent_name_and_stable_technical_engine():
     rendered_ui_source = (Path(__file__).resolve().parents[1] / 'institutional_toolkit' / 'ui.py').read_text(encoding='utf-8')
-    assert '<h3>Road Safety Intelligence Agent</h3>' in rendered_ui_source
+    assert '<h2>Road Safety Intelligence Agent</h2>' in rendered_ui_source
     assert '<h2>Road Safety Intelligence Agent</h2>' in rendered_ui_source
     assert "st.form('rs_agent_question_form'" in rendered_ui_source
     assert 'controlled RAG' not in rendered_ui_source

@@ -13,8 +13,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
 
 
-def test_seven_tabs_and_toolkit_fragment_are_wired(monkeypatch):
-    from institutional_toolkit import render as original_render
+def test_eight_tabs_include_separate_evidence_agent_and_fragments(monkeypatch):
+    from institutional_toolkit import render as original_render, render_agent as original_agent
     import institutional_toolkit
     events=[]
     st=ModuleType('streamlit')
@@ -41,6 +41,7 @@ def test_seven_tabs_and_toolkit_fragment_are_wired(monkeypatch):
     monkeypatch.setitem(sys.modules,'streamlit.components',components)
     monkeypatch.setitem(sys.modules,'streamlit.components.v1',components_v1)
     monkeypatch.setattr(institutional_toolkit,'render',lambda :events.append(('toolkit','rendered')))
+    monkeypatch.setattr(institutional_toolkit,'render_agent',lambda :events.append(('agent','rendered')))
     spec=importlib.util.spec_from_file_location('road_safety_app_e2e_stub',ROOT/'app.py')
     module=importlib.util.module_from_spec(spec)
     try:
@@ -49,11 +50,13 @@ def test_seven_tabs_and_toolkit_fragment_are_wired(monkeypatch):
         assert len(cfg)==1
         assert cfg[0][1]['page_title']=='Road Safety Toolkit'
         tabs=[e for e in events if e[0]=='tabs']
-        assert len(tabs)==1 and len(tabs[0][1])==7
-        assert tabs[0][1][-1]=='Road Safety Institutional Toolkit'
+        assert len(tabs)==1 and len(tabs[0][1])==8
+        assert tabs[0][1][-2:]==['Road Safety Institutional Toolkit', 'Ask the Evidence']
         assert len([e for e in events if e[0]=='html'])==6
         assert len([e for e in events if e[0]=='toolkit'])==1
-        assert len([e for e in events if e[0]=='fragment'])==1
+        assert len([e for e in events if e[0]=='agent'])==1
+        assert len([e for e in events if e[0]=='fragment'])==2
         assert not [e for e in events if e[0]=='error']
     finally:
         monkeypatch.setattr(institutional_toolkit,'render',original_render)
+        monkeypatch.setattr(institutional_toolkit,'render_agent',original_agent)
