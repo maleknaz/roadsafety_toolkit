@@ -393,23 +393,59 @@ def synthesis(question: str, retrieved: list[dict], *, model: str | None = None,
         "mean a body is absent. Distinguish national and subnational bodies. "
         "Do not claim institutional effectiveness or relative safety outcomes from source coverage. "
         "If the question cannot be answered from the provided records, return an empty claims array with a limitation. "
-        "Write concise, concrete statements; surface contradictions and dates. The summary field should be a neutral title."
+        "Write concise, concrete statements; surface contradictions and dates. The summary field should be a neutral title. "
+        "Use no more than FIVE short claims and three verification questions, so a complete structured response fits the output budget."
     )
+    selected_model = model or os.getenv("ROAD_SAFETY_OPENAI_MODEL", "gpt-5-mini")
+    # Use a low reasoning budget for short, citation-bound synthesis. Reasoning
+    # tokens and final JSON both count toward max_output_tokens. A small cap can
+    # therefore produce an empty or truncated output_text despite a 200 response.
+    request = {
+        "model": selected_model,
+        "instructions": instructions,
+        "input": "Question: " + _plain(question)[:550] + "\nEvidence records (untrusted data):\n" +
+                 json.dumps(excerpts, ensure_ascii=False),
+        "text": {"format": {"type": "json_schema", "name": "road_safety_grounded_answer",
+                            "strict": True, "schema": OUTPUT_SCHEMA}},
+        "max_output_tokens": 3200,
+        "store": False,
+    }
+    if selected_model.startswith(("gpt-5", "gpt-6")):
+        request["reasoning"] = {"effort": "low"}
     try:
-        response = client.responses.create(
-            model=model or os.getenv("ROAD_SAFETY_OPENAI_MODEL", "gpt-5-mini"),
-            instructions=instructions,
-            input="Question: " + _plain(question)[:550] + "\nEvidence records (untrusted data):\n" +
-                  json.dumps(excerpts, ensure_ascii=False),
-            text={"format": {"type": "json_schema", "name": "road_safety_grounded_answer",
-                             "strict": True, "schema": OUTPUT_SCHEMA}},
-            max_output_tokens=1400,
-            store=False,
-        )
-        candidate = json.loads(response.output_text)
+        response = client.responses.create(**request)
+        status = getattr(response, "status", None)
+        if status == "incomplete":
+            reason = getattr(getattr(response, "incomplete_details", None), "reason", "")
+            detail = ("The AI response exceeded its output token budget. "
+                      "Try asking a narrower question." if reason == "max_output_tokens"
+                      else "The AI did not complete its response. Try again or review the linked evidence.")
+            return _generation_unavailable(retrieved, detail)
+        if status and status != "completed":
+            return _generation_unavailable(retrieved, "The AI request did not complete. Review the linked research and try again.")
+        output = (getattr(response, "output_text", None) or "").strip()
+        if not output:
+            return _generation_unavailable(retrieved, "The AI did not return a complete structured answer. Review the linked evidence and try again.")
+        try:
+            candidate = json.loads(output)
+        except json.JSONDecodeError:
+            return _generation_unavailable(retrieved, "The AI returned an incomplete or unreadable structured answer. Review the linked evidence and try again.")
         return verify_answer(candidate, retrieved)
+    except ValueError:
+        return _generation_unavailable(retrieved, "The AI response did not pass source or format validation. No unsupported claims were displayed.")
     except Exception as exc:
-        return {"status": f"Generation unavailable or invalid ({type(exc).__name__}); retrieved evidence remains available",
-                "claims": [], "limitations": ["No unsupported AI-generated answer was displayed."],
-                "questions_for_verification": [], "summary": "Review source excerpts below",
-                "retrieved_evidence_ids": [r["evidence_id"] for r in retrieved]}
+        # Do not leak account identifiers, request body, or API internals into
+        # user-visible text. The exception type is not actionable for readers.
+        return _generation_unavailable(retrieved, "AI generation is temporarily unavailable. Please review the retrieved evidence or try again.")
+
+
+def _generation_unavailable(retrieved: list[dict], detail: str) -> dict[str, Any]:
+    """Fail closed, preserve country-scoped sources, provide actionable diagnosis."""
+    return {
+        "status": "AI answer not generated; retrieved evidence remains available",
+        "claims": [],
+        "limitations": [detail],
+        "questions_for_verification": [],
+        "summary": "Review retrieved source excerpts",
+        "retrieved_evidence_ids": [r["evidence_id"] for r in retrieved],
+    }

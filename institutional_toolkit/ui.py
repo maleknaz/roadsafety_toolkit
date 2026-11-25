@@ -1026,11 +1026,18 @@ def _agent_workspace(data: dict, country: str):
         st.divider()
         st.markdown('### Agent response')
         if output['counts']:
-            st.caption('Source excerpts retrieved: '+', '.join(f'{c}: {n}' for c,n in output['counts'].items()))
+            st.caption('Relevant source excerpts retrieved: '+', '.join(f'{c}: {n}' for c,n in output['counts'].items()))
+        if output.get('focus_domains'):
+            st.caption('Topic-specific evidence check: '+', '.join(output['focus_domains']))
         if not output['sufficient_for_ai']:
+            missing = [c for c,n in output['counts'].items() if not n]
+            topics = ', '.join(output.get('focus_domains', [])) or 'the selected topic'
             _light_notice(
-                'The reviewed research does not provide source-linked evidence for every selected country. '
-                'A comparative AI answer has not been generated. Review the available evidence below and verify the missing information.',
+                'The reviewed research does not contain source-linked evidence about '+topics+
+                ' for '+(', '.join(missing) if missing else 'every selected country')+'. '
+                'This is a documentation gap, not proof that these functions are absent. '
+                'A supported cross-country comparison cannot yet be produced. '
+                'Review the available country evidence below and obtain comparable official records.',
                 'warning')
         elif output['result']:
             label = 'Agent_'+output['label']
