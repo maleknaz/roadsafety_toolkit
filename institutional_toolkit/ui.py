@@ -4,9 +4,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 import json, re
 from html import escape
+from uuid import uuid4
 from unified_brand import header_html
 import streamlit as st
-from . import evidence as ev, reports, updates, rag, domain_views, agent_workspace
+from . import evidence as ev, reports, updates, rag, domain_views, agent_workspace, feedback
 
 ROOT=Path(__file__).resolve().parent.parent
 DATA=ROOT/'data'
@@ -909,6 +910,68 @@ _AGENT_CSS = """
 """
 
 
+
+def _agent_feedback_form(output: dict) -> None:
+    """Feedback is bound to the exact question/response, never the active widget text.
+
+    Store only in a separate private GitHub repo. Disable submission until the
+    private backend is configured; never pretend an in-memory CSV is durable.
+    """
+    if not isinstance(output.get('result'), dict):
+        return
+    uid = feedback.response_fingerprint(output)
+    st.divider()
+    st.markdown('### Help improve the Road Safety Intelligence Agent')
+    st.write('**Does this answer match your understanding of the topic?**')
+    st.caption('Feedback is reviewed by the research team. It does not automatically change published evidence.')
+    if st.session_state.get('rs_feedback_done_' + uid):
+        _light_notice('Thank you. Your feedback has been recorded for review in private storage.', 'success')
+        return
+    configured = feedback.is_configured()
+    if not configured:
+        _light_notice('Feedback collection has not been enabled by the administrator. '
+                      'The form is visible, but submissions cannot be saved until private CSV storage is configured.', 'info')
+    # Keep the radio outside st.form so choosing No immediately reveals the
+    # explanation field; widgets inside a Streamlit form do not rerun on change.
+    rating = st.radio('Your assessment', feedback.RATINGS, index=None,
+                      key='rs_feedback_rating_' + uid)
+    with st.form('rs_agent_feedback_' + uid, clear_on_submit=False):
+        explanation = ''
+        suggested_source = ''
+        if rating == feedback.RATINGS[1]:
+            explanation = st.text_area('What is incorrect or missing? *', max_chars=3000,
+                                       key='rs_feedback_comment_' + uid,
+                                       placeholder='Explain the discrepancy or correction you recommend.')
+            suggested_source = st.text_input('Supporting source link (optional)', max_chars=1000,
+                                             key='rs_feedback_link_' + uid)
+        name = st.text_input('Your name (optional)', max_chars=160,
+                             key='rs_feedback_name_' + uid)
+        consent = st.checkbox('I understand my question, the Agent response, and this feedback '
+                              'will be retained privately for research quality review.',
+                              key='rs_feedback_consent_' + uid)
+        st.caption('Anonymous by default. Do not include passwords, personal identifiers, '
+                   'or confidential government documents. No feedback is published automatically.')
+        submitted = st.form_submit_button('Submit feedback', use_container_width=True,
+                                          disabled=not configured or rating is None)
+    if submitted:
+        if not consent:
+            _light_notice('Please acknowledge the private feedback storage notice.', 'warning')
+            return
+        try:
+            # A response fingerprint selects the widget. The record ID must be
+            # unique per visitor/submission, not a shared hash of the answer.
+            submission_key = 'rs_feedback_submission_id_' + uid
+            submission_id = st.session_state.setdefault(submission_key, str(uuid4()))
+            data = feedback.build_feedback(output, rating, explanation, name, suggested_source,
+                                           feedback_id=submission_id)
+            with st.spinner('Saving feedback to private storage...'):
+                feedback.save_private_csv(data)
+            st.session_state['rs_feedback_done_' + uid] = True
+            _light_notice('Thank you. Your feedback has been saved privately for review.', 'success')
+        except feedback.FeedbackError as err:
+            _light_notice(str(err), 'warning')
+
+
 def _agent_workspace(data: dict, country: str):
     """Prominent one-question AI workspace for either one or two countries."""
     st.html(_AGENT_CSS)
@@ -977,6 +1040,7 @@ def _agent_workspace(data: dict, country: str):
             _light_notice('Retrieved evidence is available below. Configure OPENAI_API_KEY in Streamlit Secrets to enable citation-checked AI analysis.')
         with st.expander(f'View the {len(output["hits"])} retrieved source excerpts', expanded=not bool(output['result'])):
             _display_retrieved(output['hits'])
+        _agent_feedback_form(output)
         st.caption('Evidence is limited to our reviewed country records and any explicitly curated documents. '
                    'No general internet search or automatic incorporation of new claims occurs when you ask a question.')
 
