@@ -37,8 +37,8 @@ from portal_theme import PORTAL_CSS
 ROOT=Path(__file__).resolve().parent
 st.set_page_config(page_title="Road Safety Toolkit",page_icon="🚦",layout="wide",initial_sidebar_state="collapsed")
 st.markdown("""<style>
-/* Only the outer Atlas navigation is styled here; embedded HTML pages stay untouched. */
-header[data-testid="stHeader"]{height:0!important;visibility:hidden!important}
+/* The native Streamlit multipage top navigation stays visible. Embedded HTML pages remain independent. */
+header[data-testid="stHeader"]{visibility:visible!important;height:auto!important;min-height:64px!important;background:#ffffff!important;border-top:4px solid #3E8EDE!important;border-bottom:1px solid #d9e4e8!important;box-shadow:0 2px 12px rgba(17,54,79,.04)!important}
 #MainMenu,footer[data-testid="stFooter"],[data-testid="stDecoration"]{display:none!important}
 [data-testid="stMainBlockContainer"],section.main>div.block-container{max-width:none!important;padding:0!important}
 [data-testid="stTabs"] [role="tablist"]{background:#eef5f8!important;padding:12px!important;gap:6px!important;flex-wrap:wrap!important;border-bottom:3px solid #1593a9!important}
@@ -205,34 +205,56 @@ def _show_ask_the_evidence():
     """Agent tab reruns independently of six large HTML pages and the Toolkit."""
     render_intelligence_agent()
 
-# Keep the research Toolkit and the AI Evidence Agent in separate top-level tabs.
-labels=[
-    "Start here",
-    "Atlas",
-    "Taskforces",
-    "Existing documents",
-    "Bodies & strategies",
-    "Country case studies",
-    "Road Safety Institutional Toolkit",
-    "Ask the Evidence",
-]
-files=[
-    "Dashboard_Overview.html",
-    "road_safety_atlas.html",
-    "who_has_task_forces.html",
-    "Existing_road_safety_documents.html",
-    "Bodies_Their_Road_Safety_Strategies.html",
-    "Case_Studies.html",
-    "Checklists_for_Your_Task_Force.html",
-    None,  # The Agent is a Streamlit tab, not another embedded HTML iframe.
+# Each section is a real Streamlit page. Unlike st.tabs, st.Page gives each
+# section an individual, shareable pathname and renders ONLY the active page.
+# The homepage remains at /, and the existing research HTML and toolkit logic
+# are not modified by the router.
+
+def _page_home():
+    show("Dashboard_Overview.html", height=1500)
+
+
+def _page_atlas():
+    show("road_safety_atlas.html", height=2000)
+
+
+def _page_taskforces():
+    show("who_has_task_forces.html", height=2000)
+
+
+def _page_documents():
+    show("Existing_road_safety_documents.html", height=2000)
+
+
+def _page_bodies_strategies():
+    show("Bodies_Their_Road_Safety_Strategies.html", height=2000)
+
+
+def _page_case_studies():
+    show("Case_Studies.html", height=2000)
+
+
+def _page_institutional_toolkit():
+    _show_institutional_toolkit()
+
+
+def _page_ask_evidence():
+    _show_ask_the_evidence()
+
+
+# Keep URLs stable and explicit. Streamlit serves the default page at /.
+# st.navigation(position="top") requires Streamlit >= 1.46.
+PAGES = [
+    st.Page(_page_home, title="Start here", default=True),
+    st.Page(_page_atlas, title="Atlas", url_path="atlas"),
+    st.Page(_page_taskforces, title="Taskforces", url_path="taskforces"),
+    st.Page(_page_documents, title="Existing documents", url_path="documents"),
+    st.Page(_page_bodies_strategies, title="Bodies & strategies", url_path="bodies-strategies"),
+    st.Page(_page_case_studies, title="Country case studies", url_path="case-studies"),
+    st.Page(_page_institutional_toolkit,
+            title="Road Safety Institutional Toolkit", url_path="institutional-toolkit"),
+    st.Page(_page_ask_evidence, title="Ask the Evidence", url_path="ask-the-evidence"),
 ]
 
-tabs=st.tabs(labels)
-for label, filename, tab in zip(labels, files, tabs):
-    with tab:
-        if label == "Road Safety Institutional Toolkit":
-            _show_institutional_toolkit()
-        elif label == "Ask the Evidence":
-            _show_ask_the_evidence()
-        else:
-            show(filename, 1500 if filename == "Dashboard_Overview.html" else 2000)
+selected_page = st.navigation(PAGES, position="top")
+selected_page.run()

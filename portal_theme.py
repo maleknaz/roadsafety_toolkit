@@ -6,11 +6,27 @@ No Lab trademarks, logos, photographic assets or website code are reused.
 """
 
 PORTAL_CSS = r"""
+/* Multipage routing header. Streamlit owns the links and URL updates. */
+header[data-testid="stHeader"]{visibility:visible!important; min-height:64px!important;
+  background:#fff!important; border-top:4px solid #3E8EDE!important;
+  border-bottom:1px solid #d9e4e8!important;}
+header[data-testid="stHeader"] [data-testid="stNavigation"]{
+  background:#fff!important;color:#17324a!important;}
+header[data-testid="stHeader"] :is(a,button,[role="link"]){
+  color:#17324a!important;-webkit-text-fill-color:#17324a!important;}
+header[data-testid="stHeader"] :is(a,button,[role="link"]):hover{
+  background:#eef7fb!important;color:#0c5880!important;}
+header[data-testid="stHeader"] [aria-current="page"],
+header[data-testid="stHeader"] [aria-selected="true"]{
+  color:#075c87!important;-webkit-text-fill-color:#075c87!important;
+  background:#edf5fc!important;border-bottom:3px solid #3E8EDE!important;}
+
 :root{color-scheme:light;--rs-navy:#102f48;--rs-ink:#19384e;--rs-muted:#5e7281;
   --rs-teal:#087f8f;--rs-cyan:#d9f1f2;--rs-border:#dce6e9;--rs-bg:#f7fafb;}
 html,body,[data-testid="stAppViewContainer"],[data-testid="stApp"]{
   background:#f7fafb!important;color:#19384e!important;}
-/* Clear, lab-like primary navigation. Streamlit still manages every tab. */
+/* Styles below apply to nested tabs within the Institutional Toolkit, not to
+   the new top-level page navigation. */
 [data-testid="stTabs"] > div > [role="tablist"],
 [data-testid="stTabs"] [role="tablist"]{
   background:#ffffff!important;padding:9px clamp(12px,2.4vw,42px)!important;
